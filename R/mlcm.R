@@ -37,11 +37,13 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
   if(class(y) != "character") stop("y must be a character")
+  if(!(y %in% colnames(data))) stop (paste("there is no column called", y, "in 'data'"))
   if(class(timevar) != "character") stop("timevar must be a character")
+  if(!(timevar %in% colnames(data))) stop (paste("there is no column called", timevar, "in 'data'"))
   if(class(id) != "character") stop("id must be a character")
+  if(!(id %in% colnames(data))) stop (paste("there is no column called", id, "in 'data'"))
   if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
-  if(inf_type == "conformal") warning("conformal inference not yet optimized")
 
   ### Structuring the panel dataset in the required format
   data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
@@ -56,7 +58,6 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
   set.seed(1)
   fit <- train(Y ~ .,
                data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-               # data = data_panel[ind, !(names(data) %in% c("Time"))],
                method = best$method,
                metric = "RMSE",
                trControl = trainControl(method="none"),
@@ -83,7 +84,7 @@ as.PanelMLCM <- function(y, x, timevar, id){
   if(NROW(x) != length(y)) stop("NROW(x) != length(y)")
   if(!any(class(timevar) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "integer", "numeric")) | length(timevar) != length(y)) stop("timevar must be a numeric vector or a 'Date' object of the same length as y")
   if(!(is.numeric(id) & length(id) == length(y))) stop("id must be a numeric vector of the same length as y")
-  if(length(unique(id))*length(unique(timevar)) != length(y)) stop("The panel is unbalanced")
+  if(length(unique(id))*length(unique(timevar)) != length(y)) warning("The panel is unbalanced")
 
   # Structuring the panel dataset
   panel <- data.frame(Time = timevar, ID = id, Y = y, x)
