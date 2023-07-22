@@ -4,15 +4,17 @@
 ##
 ## Authors: Cerqua A., Letta M., Menchetti F.
 ##
-## Date last modified: March 2023
+## Date last modified: July 2023
 ##
 ###############################################################################
 
-PanelCrossValidation <- function(data, post_period){
+PanelCrossValidation <- function(data, post_period, blocked = pcv_block){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")){stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")}
   if(!(post_period %in% data[, "Time"]))(stop("post_period must be contained in timevar"))
+  if(length(unique(data[, "Time"])) - 2 - blocked < 1) stop("Panel cross validation must be performed in at least one time period")
+  if(blocked <= 0) stop("The number of 'blocked' time periods for panel cross validation must be at least 1")
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
 
@@ -20,8 +22,8 @@ PanelCrossValidation <- function(data, post_period){
   post_period <- post_period
   indices <- CreateSpacetimeFolds(data, timevar = "Time",
                                   k=Tt)
-  trainx <- lapply(1:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
-  testx <- lapply(1:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
+  trainx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
+  testx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
 
   ### STEP 2. Set control function by specifying the training and testing folds that caret will use
   ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)
@@ -35,35 +37,52 @@ PanelCrossValidation <- function(data, post_period){
 
   # Stochastic gradient boosting
   gbmGrid <-  expand.grid(interaction.depth = c(1, 2, 3),
-                          n.trees=c(500, 1000, 1500),
-                          shrinkage = 0.1,
-                          n.minobsinnode = 10)
+                          n.trees=c(500, 1000, 1500, 2000),
+                          # shrinkage = 0.1,
+                          shrinkage = seq(0.01, 0.1, by = 0.01),
+                          n.minobsinnode = c(10,20))
+
+  set.seed(1)
   bo <- train(Y ~ .,
               data = data[, !(names(data) %in% c("ID", "Time"))],
               # data = data[, !(names(data) %in% c("Time"))],
               method = "gbm",
               metric = "RMSE",
               trControl = ctrl,
-              tuneGrid = gbmGrid)
+              tuneGrid = gbmGrid,
+              verbose = FALSE)
   # Random forest
+  set.seed(1)
   rf <- train(Y ~ .,
               data = data[, !(names(data) %in% c("ID", "Time"))],
               # data = data[, !(names(data) %in% c("Time"))],
               method = "rf",
               metric = "RMSE",
+              search = "grid",
               trControl = ctrl,
-              ntree=1000)
+              tuneGrid = expand.grid(mtry = (2:(ncol(data)-3))),
+              ntree=500)
   # LASSO
-  lasso <- train(Y ~ .*.,
+  lasso <- train(Y ~ .,
                  data = data[, !(names(data) %in% c("ID", "Time"))],
                  # data = data[, !(names(data) %in% c("Time"))],
                  method = "lasso",
                  metric = "RMSE",
                  trControl = ctrl,
+                 tuneGrid = expand.grid(fraction = seq(0.1, 0.9, by = 0.1)),
                  preProc=c("center", "scale"))
 
+  # PLS
+  pls <- train(Y ~ .,
+               data = data[, !(names(data) %in% c("ID", "Time"))],
+               method = "pls",
+               metric = "RMSE",
+               trControl = ctrl,
+               tuneGrid = expand.grid(ncomp = c(1:10)),
+               preProc=c("center", "scale"))
+
   ### STEP 4. Selecting the "best" ML algorithm based on the provided performance metric
-  m_list <- list(bo = bo, rf = rf, lasso = lasso)
+  m_list <- list(bo = bo, rf = rf, lasso = lasso, pls = pls)
   rmse_min <- sapply(m_list, FUN = function(x) min(x$results[, "RMSE"]), simplify = T)
   ind <- which(rmse_min == min(rmse_min))
 
