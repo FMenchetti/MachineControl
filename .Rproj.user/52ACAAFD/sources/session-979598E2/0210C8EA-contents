@@ -8,7 +8,19 @@
 ##
 ###############################################################################
 
-#' MLCM
+#' Machine Learning Control Method
+#'
+#' This function is the main workhorse of the package 'MachineControl'. It takes as
+#' input a panel dataset, i.e., multiple units observed at several points in time and
+#' exposed simultaneously to some policy (indicated by post_period). It then performs
+#' the Panel Cross Validation (PCV) by comparing the predictive performance of several Machine
+#' Learning (ML) methods in the pre-intervention periods and then outputs the estimated
+#' Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
+#' bootstrap. Details on the causal assumptions, the estimation process and inference
+#' can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
+#' suited when there are no control units available, but if there are control units these
+#' can be easily added as control series among the covariates.
+#'
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
 #'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
@@ -20,14 +32,36 @@
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #'
-#' pcv_block = 1 (the default) indicates to use the observations in the first time period as
-#' the first training sample and to test on the next period. Then, the second training sample
-#' will be formed by the observations on the first two time periods. Validation will be
-#' performed on the the third period and so on. For longer series, specifying pcv_block > 1 reduces computational time.
-#' For example, by setting pcv_block = 4 when the length of the pre-intervention time series is 7 reduces the number
-#' of vlidation sets to 3 instead of 6.
+#' @details
+#' The panel \code{data} must at least include the response variable, a column of the time variable,
+#' and a column with the unit identifiers. Lagged values of the outcome, lagged or contemporaneous
+#' exogenous covariates, control series can also be added in the panel dataset. The ML algorithms
+#' will automatically treat every column that is left as additional information to improve the
+#' prediction of the counterfactual post-intervention outcome.
 #'
-#' @return
+#' The user can choose among many different bootstrap algorithms. For details see the documentation
+#' of the function \code{boot_fun}. For details on the PCV see the documentation of the function
+#' \code{PanelCrossValidation}.
+#'
+#' To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the
+#' \code{pcv_block} parameter, e.g., \code{pcv_block = 1} (the default) indicates to use the observations
+#' in the first time period as the first training sample and to test on the next period. Then, the second
+#' training sample will be formed by the observations on the first two time periods. Validation will be
+#' performed on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time.
+#' For example, by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number
+#' of validation sets to 3 instead of 6.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
+#'   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
+#'   on all pre-intervention data
+#'   \item \code{ate}: the estimated ATE
+#'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
+#'   by the user in 'inf_type'
+#'   \item \code{ate.lower}: lower bound of a 95% bootstrap confidence interval
+#'   \item \code{ate.upper}: upper bound of a 95% bootstrap confidence interval
+#' }
 #' @export
 #'
 #' @examples
@@ -75,6 +109,20 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
   return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper))
   # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
 }
+
+#' Structuring the panel dataset
+#'
+#' This function takes as input the panel dataset given by the user and changes the
+#' ordering and the names of the columns to obtain another data.frame of class 'PanelMLCM'
+#' to be used by the function 'MLCM'. The function is for internal use (not exported).
+#'
+#' @param y Character, name of the column containing the outcome variable.
+#' @param x Matrix or data.frame of covariates to include in the model.
+#' @param timevar  Character, name of the column containing the time variable.
+#' @param id Character, name of the column containing the ID's.
+#'
+#' @return An object of class 'data.frame' and 'PanelMLCM'.
+#'
 
 as.PanelMLCM <- function(y, x, timevar, id){
 
