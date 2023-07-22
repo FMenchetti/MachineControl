@@ -1,26 +1,26 @@
 {
-    "id": "0210C8EA",
-    "path": "~/GitHub/MLCM/R/mlcm.R",
-    "project_path": "R/mlcm.R",
+    "id": "6888AE80",
+    "path": "C:/Users/fiamm/Downloads/package.R",
+    "project_path": null,
     "type": "r_source",
-    "hash": "4071325334",
+    "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1677688588084.0,
+    "created": 1690033776316.0,
     "source_on_save": false,
-    "relative_order": 1,
+    "relative_order": 4,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "6,27",
-        "scrollLine": "0"
+        "cursorPosition": "113,0",
+        "scrollLine": "100"
     },
     "folds": "",
-    "lastKnownWriteTime": 1690033882,
+    "lastKnownWriteTime": 1689690676,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1690033882857,
+    "last_content_update": 1689690676,
     "read_only": false,
     "read_only_alternatives": []
 }

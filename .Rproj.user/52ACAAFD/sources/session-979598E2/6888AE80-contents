@@ -1,0 +1,475 @@
+###############################################################################
+##
+## MLCM Package
+##
+##
+##
+##
+##
+###############################################################################
+
+#' MLCM
+#'
+#' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
+#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
+#' @param y           Character, name of the column containing the outcome variable.
+#' @param timevar     Character, name of the column containing the time variable.
+#' @param id          Character, name of the column containing the ID's. 
+#' @param post_period The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.
+#' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
+#' @param nboot       Number of bootstrap replications, defaults to 1000.
+#' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#'
+#' pcv_block = 1 (the default) indicates to use the observations in the first time period as
+#' the first training sample and to test on the next period. Then, the second training sample
+#' will be formed by the observations on the first two time periods. Validation will be
+#' performed on the the third period and so on. For longer series, specifying pcv_block > 1 reduces computational time.
+#' For example, by setting pcv_block = 4 when the length of the pre-intervention time series is 7 reduces the number 
+#' of vlidation sets to 3 instead of 6.
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' 
+MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1){
+  
+  ### Parameter checks
+  if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
+  if(class(y) != "character") stop("y must be a character")
+  if(class(timevar) != "character") stop("timevar must be a character")
+  if(class(id) != "character") stop("id must be a character")
+  if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
+  if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(inf_type == "conformal") warning("conformal inference not yet optimized")
+  
+  ### Structuring the panel dataset in the required format
+  data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                             x = data[, !(names(data) %in% c(y, id, timevar))])
+  
+  ### Panel cross-validation
+  best <- PanelCrossValidation(data = data_panel, post_period = post_period, blocked = pcv_block)
+  
+  ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
+  ind <- which(data_panel[, "Time"] < post_period)
+  
+  set.seed(1)
+  fit <- train(Y ~ .,
+              data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+              # data = data_panel[ind, !(names(data) %in% c("Time"))],
+              method = best$method,
+              metric = "RMSE",
+              trControl = trainControl(method="none"),
+              tuneGrid = best$bestTune)
+  obs <- data_panel[-ind, "Y"]
+  pred <- predict(fit, newdata = data_panel[-ind, ])
+  
+  ### ATE 
+  ate <- mean(obs - pred)
+  
+  ### Inference
+  boot_inf <- boot_fun(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
+  
+  #if(inf_type == "bc"){ 
+   
+  #  ate_boot <- sapply(1:nboot, function(x){boot_fun( data = data_panel, ind = ind, bestt = fit, type = "classic")})
+  #  mean_ate_boot <- apply(ate_boot, 2, mean)
+    
+    # Bias correction
+  #  z0 <- qnorm(sum(mean_ate_boot < ate)/nboot)
+  #  lower <- pnorm(2*z0 + qnorm(0.025))
+  #  upper <- pnorm(2*z0 + qnorm(0.975))
+  #  conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper))
+    
+  # } else{
+    
+  #  type <- gsub(inf_type, pattern = " bootstrap", replacement = "")
+  #  ate_boot <- sapply(1:nboot, function(x){boot_fun( data = data_panel, ind = ind, bestt = fit, type = type, nboot = nboot)})
+  #  conf.ate <- quantile(colMeans(ate_boot), probs = c(0.025, 0.975))
+    # conf.individual <- t(apply(ate_boot, 1, quantile, probs = c(0.025, 0.975)))
+  # }
+ 
+  ### Saving results
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper))
+  # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
+}
+
+as.PanelMLCM <- function(y, x, timevar, id){
+  
+  # Parameter checks
+  if(!(is.numeric(y) & length(y)>1)) stop("y must be a numeric vector of length greater than 1")
+  if(!any(class(x) %in% c("numeric", "matrix", "data.frame"))) stop("x must be a vector, matrix or data.frame")
+  if(NROW(x) != length(y)) stop("NROW(x) != length(y)")
+  if(!any(class(timevar) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "integer", "numeric")) | length(timevar) != length(y)) stop("timevar must be a numeric vector or a 'Date' object of the same length as y")
+  if(!(is.numeric(id) & length(id) == length(y))) stop("id must be a numeric vector of the same length as y")
+  if(length(unique(id))*length(unique(timevar)) != length(y)) stop("The panel is unbalanced")
+  
+  # Structuring the panel dataset
+  panel <- data.frame(Time = timevar, ID = id, Y = y, x)
+  
+  # Returning results
+  class(panel) <- c("data.frame", "PanelMLCM")
+  return(panel)
+}
+
+PanelCrossValidation <- function(data, post_period, blocked = pcv_block){
+  
+  ### Parameter checks
+  if(!any(class(data) %in% "PanelMLCM")){stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")}
+  if(!(post_period %in% data[, "Time"]))(stop("post_period must be contained in timevar"))
+  if(length(unique(data[, "Time"])) - 2 - blocked < 1) stop("Panel cross validation must be performed in at least one time period")
+  if(blocked <= 0) stop("The number of 'blocked' time periods for panel cross validation must be at least 1")
+  
+  ### STEP 1. The CAST package is used to generate separate testing sets for each year 
+ 
+  Tt <- length(unique(data[, "Time"]))
+  post_period <- post_period 
+  indices <- CreateSpacetimeFolds(data, timevar = "Time",
+                                  k=Tt)
+  trainx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
+  testx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
+  
+  ### STEP 2. Set control function by specifying the training and testing folds that caret will use 
+  ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)
+  
+  ctrl <- trainControl(index = trainx, indexOut = testx)
+ 
+  ### STEP 3.  Tune the hyperparameters of each of the ML algorithms via temporal cross-validation
+  
+  # DOMANDA: di quanti dei successivi parametri vogliamo lasciare la scelta all'utente?
+  # Vogliamo lasciare la scelta anche degli algoritmi?? Forse potremmo far sì che l'utente possa inserire le funzioni 'train' che vuole
+  
+  # Stochastic gradient boosting
+  gbmGrid <-  expand.grid(interaction.depth = c(1, 2, 3), 
+                          n.trees=c(500, 1000, 1500, 2000), 
+                          # shrinkage = 0.1,
+                          shrinkage = seq(0.01, 0.1, by = 0.01),
+                          n.minobsinnode = c(10,20))
+  
+  set.seed(1)
+  bo <- train(Y ~ .,
+              data = data[, !(names(data) %in% c("ID", "Time"))],
+              # data = data[, !(names(data) %in% c("Time"))],
+              method = "gbm",
+              metric = "RMSE",
+              trControl = ctrl,
+              tuneGrid = gbmGrid,
+              verbose = FALSE)
+  # Random forest
+  set.seed(1)
+  rf <- train(Y ~ .,
+              data = data[, !(names(data) %in% c("ID", "Time"))],
+              # data = data[, !(names(data) %in% c("Time"))],
+              method = "rf",
+              metric = "RMSE",
+              search = "grid",
+              trControl = ctrl,
+              tuneGrid = expand.grid(mtry = (2:(ncol(data)-3))),
+              ntree=500)
+  # LASSO
+  lasso <- train(Y ~ .,
+                 data = data[, !(names(data) %in% c("ID", "Time"))],
+                 # data = data[, !(names(data) %in% c("Time"))],
+                 method = "lasso",
+                 metric = "RMSE",
+                 trControl = ctrl,
+                 tuneGrid = expand.grid(fraction = seq(0.1, 0.9, by = 0.1)),
+                 preProc=c("center", "scale"))
+  
+  # PLS
+  pls <- train(Y ~ .,
+               data = data[, !(names(data) %in% c("ID", "Time"))],
+               method = "pls",
+               metric = "RMSE",
+               trControl = ctrl,
+               tuneGrid = expand.grid(ncomp = c(1:10)),
+               preProc=c("center", "scale"))
+  
+  ### STEP 4. Selecting the "best" ML algorithm based on the provided performance metric
+  m_list <- list(bo = bo, rf = rf, lasso = lasso, pls = pls)
+  rmse_min <- sapply(m_list, FUN = function(x) min(x$results[, "RMSE"]), simplify = T)
+  ind <- which(rmse_min == min(rmse_min))
+  
+  ### Returning result
+  return(best = m_list[[ind]])
+  
+}
+
+boot_fun <- function(data, ind, bestt, type, nboot, ate = NULL){
+  
+  ### Step 1. Sampling indices
+  if(type %in% c("classic", "bc classic", "bca")){
+    
+    ii<- matrix(sample(ind, size = nboot*length(ind), replace = T), nrow = nboot, ncol = length(ind))
+    # Nota: non sto ricampionando un sottoinsieme (es. 60% del totale) ma tutto
+  }
+  
+  if(type %in% c("block", "bc block")){
+    
+    ids <- unique(data$ID)
+    ii <- t(sapply(1:nboot, function(boot){set.seed(boot); ind1 <- sample(ids, size = length(ids), replace = T); 
+            unlist(sapply(ind1, function(x)(intersect(which(data[, "ID"] %in% x), ind)), simplify = F))}))
+    # ind1 <- sample(unique(data$ID), round(length(unique(data$ID))*0.6), replace = T)
+    # ind1 <- intersect(which(data[, "ID"] %in% ind1), ind)
+    # Nota: anche qui non sto ricampionando un sottoinsieme ma tutte le unità con replacement
+  }
+  
+  ### Step 2. Bootstrapping (estimating the causal effect on the units resampled in each bootstrap iteration)
+  ate_boot <- apply(ii, 1, function(i){
+                     fitb <- train(Y ~ .,
+                     data = data[i, !(names(data) %in% c("ID", "Time"))],
+                     method = bestt$method,
+                     metric = "RMSE",
+                     trControl = trainControl(method="none"),
+                     tuneGrid = bestt$bestTune) ;
+                     obs <- data[-c(ind, i), "Y"] ;
+                     eps <- data[i, "Y"] - predict(fitb)
+                     # error <- sample(eps, size = nrow(data[-ind,]), replace = T) # verifica che sia così anche per block boot
+                     error <- rnorm(n = nrow(data[-ind,]), mean = mean(eps), sd = sd(eps))
+                     pred <- predict(fitb, newdata = data[-c(ind, i), ]) + error ;
+                     #pred <- predict(fitb, newdata = data[-c(ind, i), ]) ;
+                     obs - pred
+  })
+  
+  mean_ate_boot <- colMeans(ate_boot)
+  conf.ate <- quantile(mean_ate_boot, probs = c(0.025, 0.975))
+  
+  ### Step 3. Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block" or "bca")
+  
+  if(type %in% c("bc classic", "bc block")){
+    
+    # Bias correction
+    z0 <- qnorm(sum(mean_ate_boot < ate)/nboot)
+    lower <- pnorm(2*z0 + qnorm(0.025))
+    upper <- pnorm(2*z0 + qnorm(0.975))
+    conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper))
+    
+  }
+  
+  if(type == "bca"){
+    
+     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, ind))-1)))
+     Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate)
+     out2 <- bcajack2(B = Blist) ## doesn't work
+     conf.ate <- out2$lims[c(1,9),"bca"]
+     # or 
+     # func <- function(x, bestt, ind){
+    
+     # fitb <- train(Y ~ .,
+     #              data = x[ind, !(names(data) %in% c("ID", "Time"))],
+     #             method = bestt$method,
+     #              metric = "RMSE",
+     #             trControl = trainControl(method="none"),
+     #             tuneGrid = bestt$bestTune) ;
+     # obs <- x[-ind, "Y"] ;
+     # pred <- predict(fitb, newdata = x[-ind, ]) ;
+     # mean(obs - pred)
+     # }
+     # out <- bcapar(t0 = ate, tt = rowMeans(ate_boot), bb = counts)
+  }
+  
+  
+  #fitb <- train(Y ~ .,
+  #              data = data[ind1, !(names(data) %in% c("ID", "Time"))],
+  #              method = bestt$method,
+  #              metric = "RMSE",
+  #              trControl = trainControl(method="none"),
+  #              tuneGrid = bestt$bestTune)
+  # obs <- data[-c(ind, ind1), "Y"] 
+  # pred <- predict(fitb, newdata = data[-c(ind, ind1), ])
+  
+  # Returning results
+  return(list(type = type, ate_boot = ate_boot, conf.ate = conf.ate, var.ate = var(mean_ate_boot), ate.lower = conf.ate[1], ate.upper = conf.ate[2]))
+}
+
+
+
+SplitConfPred <- function(data, ind, bestt){
+
+  # Defining the two splits
+  ind1<- sample(ind, length(ind)*0.5, replace = F) # nrow dei dati può essere anche dispari, va corretto qui
+  ind2<- ind[which(!(ind %in% ind1))]
+  
+  # Training in split 1, computing residuals in split 2
+  fitb <- train(Y ~ .,
+                data = data[ind1, !(names(data) %in% c("ID", "Time"))],
+                # data = data[ind1, !(names(data) %in% c("Time"))],
+                method = bestt$method,
+                metric = "RMSE",
+                trControl = trainControl(method="none"),
+                tuneGrid = bestt$bestTune)
+  res <- abs(data[ind2, "Y"] - predict(fitb, newdata = data[ind2,]))
+  kOut <- ceiling(((nrow(data[ind,])/2)+1)*(.975))
+  resUse <- res[order(res)][kOut]
+  
+  # Causal effect and conformal interval
+  obs <- data[-ind, "Y"] 
+  pred <- predict(fitb, newdata = data[-ind, ])
+  confint <- cbind(Lower = obs - pred - resUse, Upper = obs - pred + resUse)
+  
+  # Returning results
+  return(conf.ate = colMeans(confint))
+  
+  # Generalization to individual effects:
+  # return(conf.ate = colMeans(confint), conf.individual = confint)
+}
+
+bca_prova <- function (x, B, func, ..., m = nrow(x), mr, pct = 0.333, K = 2, 
+                       J = 12, alpha = c(0.025, 0.05, 0.1, 0.16), verbose = TRUE) 
+{
+  call <- match.call()
+  if (!exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) 
+    stats::runif(1)
+  seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  browser()
+  qbca2 <- function(Y, tt, t0, alpha, pct) {
+    browser()
+    m <- ncol(Y)
+    B <- nrow(Y)
+    o1 <- rep(1, m)
+    D <- rep(0, B)
+    for (i in seq_len(B)) {
+      Yi <- Y[i, ]
+      d <- 2 * Yi * log(Yi) - 2 * (Yi - 1)
+      d[Yi == 0] <- 2
+      D[i] <- sum(d)
+    }
+    Qd <- stats::quantile(D, pct)
+    ip <- seq_len(B)[D <= Qd]
+    ty. <- as.vector(m * stats::lm(tt[ip] ~ Y[ip, ] - 1)$coef)
+    ty. <- ty. - mean(ty.)
+    a <- (1/6) * sum(ty.^3)/sum(ty.^2)^1.5
+    s <- mean(tt)
+    B.mean <- c(B, s)
+    zalpha <- stats::qnorm(alpha)
+    nal <- length(alpha)
+    ustat <- 2 * t0 - s
+    s. <- m * as.vector(stats::cov(tt, Y))
+    u. <- 2 * ty. - s.
+    sdu <- sum(u.^2)^0.5/m
+    ustats <- c(ustat, sdu)
+    names(ustats) <- c("ustat", "sdu")
+    sdboot <- stats::sd(tt)
+    sdjack <- sqrt(sum(ty.^2))/(m - 1)
+    z0 <- stats::qnorm(sum(tt < t0)/B)
+    iles <- stats::pnorm(z0 + (z0 + zalpha)/(1 - a * (z0 + 
+                                                        zalpha)))
+    ooo <- trunc(iles * B)
+    ooo <- pmin(pmax(ooo, 1), B)
+    lims <- sort(tt)[ooo]
+    standard <- t0 + sdboot * stats::qnorm(alpha)
+    lims <- cbind(lims, standard)
+    dimnames(lims) <- list(alpha, c("bca", "std"))
+    stats <- c(t0, sdboot, z0, a, sdjack)
+    names(stats) <- c("theta", "sdboot", "z0", "a", "sdjack")
+    vl <- list(lims = lims, stats = stats, B.mean = B.mean, 
+               ustats = ustats)
+    return(vl)
+  }
+  alpha <- alpha[alpha < 0.5]
+  alpha <- c(alpha, 0.5, rev(1 - alpha))
+  if (is.list(B)) {
+    Y <- B$Y
+    tt <- B$tt
+    t0 <- B$t0
+    B <- length(tt)
+    vl0 <- qbca2(Y, tt, t0, alpha = alpha, pct = pct)
+  }
+  else {
+    if (is.vector(x)) 
+      x <- as.matrix(x)
+    n <- nrow(x)
+    tt <- rep(0, B)
+    t0 <- func(x, ...)
+    if (m == n) {
+      ii <- sample(x = seq_len(n), size = n * B, replace = TRUE)
+      ii <- matrix(ii, B)
+      Y <- matrix(0, B, n)
+      if (verbose) 
+        pb <- utils::txtProgressBar(min = 0, max = B, 
+                                    style = 3)
+      for (k in 1:B) {
+        ik <- ii[k, ]
+        tt[k] <- func(x[ik, ], ...)
+        Y[k, ] <- table(c(ik, 1:n)) - 1
+        if (verbose) 
+          utils::setTxtProgressBar(pb, k)
+      }
+      if (verbose) 
+        close(pb)
+      vl0 <- qbca2(Y, tt, t0, alpha = alpha, pct = pct)
+    }
+    if (m < n) {
+      r <- n%%m
+      Imat <- matrix(sample(x = seq_len(n), size = n - 
+                              r), m)
+      Iout <- setdiff(1:n, Imat)
+      ii <- sample(x = seq_len(m), size = m * B, replace = TRUE)
+      ii <- matrix(ii, B)
+      Y <- matrix(0, B, m)
+      if (verbose) 
+        pb <- utils::txtProgressBar(min = 0, max = B, 
+                                    style = 3)
+      for (k in 1:B) {
+        ik <- ii[k, ]
+        Ik <- c(t(Imat[ik, ]))
+        Ik <- c(Ik, Iout)
+        tt[k] <- func(x[Ik, ], ...)
+        Y[k, ] <- table(c(ik, 1:m)) - 1
+        if (verbose) 
+          utils::setTxtProgressBar(pb, k)
+      }
+      if (verbose) 
+        close(pb)
+      vl0 <- qbca2(Y, tt, t0, alpha = alpha, pct = pct)
+    }
+  }
+  vl0$call <- call
+  vl0$seed <- seed
+  if (K == 0) 
+    bcaboot.return(vl0)
+  nal <- length(alpha)
+  Pct <- rep(0, nal)
+  for (i in 1:nal) Pct[i] <- sum(tt <= vl0$lims[i, 1])/B
+  Stand <- vl0$stats[1] + vl0$stats[2] * stats::qnorm(alpha)
+  Limsd <- matrix(0, length(alpha), K)
+  Statsd <- matrix(0, 5, K)
+  Limbcsd <- matrix(0, length(alpha), K)
+  Statsd <- matrix(0, 5, K)
+  for (k in 1:K) {
+    rr <- B%%J
+    II <- sample(x = B, size = B - rr)
+    II <- matrix(II, ncol = J)
+    limbc <- limst <- matrix(0, length(alpha), J)
+    stats <- matrix(0, 5, J)
+    for (j in 1:J) {
+      iij <- c(II[, -j])
+      Yj <- Y[iij, ]
+      ttj <- tt[iij]
+      vlj <- qbca2(Yj, ttj, t0, alpha, pct)
+      limbc[, j] <- vlj$lims[, 1]
+      limst[, j] <- vlj$lims[, 2]
+      stats[, j] <- vlj$stats
+    }
+    Limbcsd[, k] <- apply(limbc, 1, sd) * (J - 1)/sqrt(J)
+    Statsd[, k] <- apply(stats, 1, sd) * (J - 1)/sqrt(J)
+  }
+  limsd <- rowMeans(Limbcsd, 1)
+  statsd <- rowMeans(Statsd, 1)
+  limits <- cbind(vl0$lims[, 1], limsd, vl0$lims[, 2], Pct)
+  dimnames(limits) <- list(alpha, c("bca", "jacksd", "std", 
+                                    "pct"))
+  stats <- rbind(vl0$stats, statsd)
+  ustats <- vl0$ustats
+  B.mean <- c(B, mean(tt))
+  dimnames(stats) <- list(c("est", "jsd"), c("theta", "sdboot", 
+                                             "z0", "a", "sdjack"))
+  vll <- list(call = call, lims = limits, stats = stats, B.mean = B.mean, 
+              ustats = ustats, seed = seed)
+  bcaboot.return(vll)
+}
+
+bcaboot.return <- function(x) {
+  class(x) <- "bcaboot"
+  x
+}

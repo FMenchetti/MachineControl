@@ -4,7 +4,7 @@
 ##
 ## Authors: Cerqua A., Letta M., Menchetti F.
 ##
-## Date last modified: March 2023
+## Date last modified: July 2023
 ##
 ###############################################################################
 
@@ -16,14 +16,23 @@
 #' @param timevar     Character, name of the column containing the time variable.
 #' @param id          Character, name of the column containing the ID's.
 #' @param post_period The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.
+#' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
+#' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #'
-#' @return A list
+#' pcv_block = 1 (the default) indicates to use the observations in the first time period as
+#' the first training sample and to test on the next period. Then, the second training sample
+#' will be formed by the observations on the first two time periods. Validation will be
+#' performed on the the third period and so on. For longer series, specifying pcv_block > 1 reduces computational time.
+#' For example, by setting pcv_block = 4 when the length of the pre-intervention time series is 7 reduces the number
+#' of vlidation sets to 3 instead of 6.
+#'
+#' @return
 #' @export
 #'
+#' @examples
 #'
-#'
-MLCM <- function(data, y, timevar, id, post_period, nboot = 1000){
+MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
@@ -31,18 +40,22 @@ MLCM <- function(data, y, timevar, id, post_period, nboot = 1000){
   if(class(timevar) != "character") stop("timevar must be a character")
   if(class(id) != "character") stop("id must be a character")
   if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
+  if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(inf_type == "conformal") warning("conformal inference not yet optimized")
 
   ### Structuring the panel dataset in the required format
   data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
                              x = data[, !(names(data) %in% c(y, id, timevar))])
 
   ### Panel cross-validation
-  best <- PanelCrossValidation(data = data_panel, post_period = post_period)
+  best <- PanelCrossValidation(data = data_panel, post_period = post_period, blocked = pcv_block)
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
   ind <- which(data_panel[, "Time"] < post_period)
+
+  set.seed(1)
   fit <- train(Y ~ .,
-               data = data_panel[, !(names(data_panel) %in% c("ID", "Time"))],
+               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
                # data = data_panel[ind, !(names(data) %in% c("Time"))],
                method = best$method,
                metric = "RMSE",
@@ -54,36 +67,12 @@ MLCM <- function(data, y, timevar, id, post_period, nboot = 1000){
   ### ATE
   ate <- mean(obs - pred)
 
-  ### Bootstrap
-
-  # IL SEGUENTE CODICE PER IL BOOTSTRAP NON FUNZIONA, LA STATISTICA STIMATA (prova$t0) RISULTA NaN
-  # MENTRE INVECE prova$t VIENE STIMATO MA PROSSIMO A ZERO PER OGNI REPLICATION
-  # boot_fun <- function(data, ind=ind, bestt=fit){
-  #
-  #  fitb <- train(Y ~ .,
-  #               # data = data[, !(names(data) %in% c("ID", "Time"))],
-  #               data = data[ind, !(names(data) %in% c("Time"))],
-  #               method = bestt$method,
-  #               metric = "RMSE",
-  #               trControl = trainControl(method="none"),
-  #               tuneGrid = bestt$bestTune)
-  #  obs <- data[-ind, "Y"]
-  #  pred <- predict(fitb, newdata = data[-ind, ])
-  #  ate <- mean(obs - pred)
-
-  # }
-  # prova <- boot(data = data_panel, boot_fun, R = 100)
-
-  # SE PERO' HO BEN CAPITO COME FUNZIONA IL CODICE SOPRA, NON SI FA ALTRO CHE CAMPIONARE DEGLI INDICI
-  # NEL PERIODO PRE-INTERVENTO E RISTIMARE CON IL METODO SELEZIONATO IN PRECEDENZA ( 'fit' nel nostro caso)
-  # SE E' COSì, IL CODICE SEGUENTE DOVREBBE BASTARE:
-
-  ate_boot <- unlist(lapply(1:nboot, function(x){set.seed(x); boot_fun( data = data_panel, ind = ind, bestt = fit)}))
-
+  ### Inference
+  boot_inf <- boot_fun(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
 
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, ate_boot = ate_boot))
-
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper))
+  # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
 }
 
 as.PanelMLCM <- function(y, x, timevar, id){
@@ -103,6 +92,3 @@ as.PanelMLCM <- function(y, x, timevar, id){
   class(panel) <- c("data.frame", "PanelMLCM")
   return(panel)
 }
-
-
-
