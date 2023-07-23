@@ -31,6 +31,8 @@
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param metric      Character, the performance metric that should be used to select the optimal model.
+#'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #'
 #' @details
 #' The panel \code{data} must at least include the response variable, a column of the time variable,
@@ -38,6 +40,15 @@
 #' exogenous covariates, control series can also be added in the panel dataset. The ML algorithms
 #' will automatically treat every column that is left as additional information to improve the
 #' prediction of the counterfactual post-intervention outcome.
+#'
+#' By default, the function internally uses \code{as.PanelMLCM} to organize a messy panel dataset and
+#' then compares the performance of two linear models (Partial Least Squares and LASSO)
+#' and two non-linear models (Random Forests and Stochastic Gradient Boosting) in one-step ahead
+#' predictions by running internally the panel cross validation routine. The comparison is performed based on
+#' the \code{metric} provided by the users and lasts until the end of the pre-intervention period.
+#' Different ML algorithms can be selected by the user among all the options available in the \code{caret}
+#' package. In this case, the users must start from a tidy panel dataset (from a previous call to \code{as.PanelMLCM})
+#' and must execute their own panel cross validation. See the examples below.
 #'
 #' The user can choose among many different bootstrap algorithms. For details see the documentation
 #' of the function \code{boot_fun}. For details on the PCV see the documentation of the function
@@ -66,7 +77,16 @@
 #'
 #' @examples
 #'
-MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1){
+#' ### Example 1. Running MLCM with the default options
+#'
+#' # Causal effect estimation of a policy occurred in 2020
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic")
+#' fit$ate
+#'
+#' # Bootstrap confidence interval
+#' c(fit$lower.ate, fit$upper.ate)
+#'
+MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE"){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
@@ -84,7 +104,7 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
                              x = data[, !(names(data) %in% c(y, id, timevar))])
 
   ### Panel cross-validation
-  best <- PanelCrossValidation(data = data_panel, post_period = post_period, blocked = pcv_block)
+  best <- PanelCrossValidation(data = data_panel, post_period = post_period, blocked = pcv_block, metric = metric)
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
   ind <- which(data_panel[, "Time"] < post_period)
@@ -93,7 +113,7 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
   fit <- train(Y ~ .,
                data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
                method = best$method,
-               metric = "RMSE",
+               metric = metric,
                trControl = trainControl(method="none"),
                tuneGrid = best$bestTune)
   obs <- data_panel[-ind, "Y"]
@@ -116,14 +136,29 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
 #' ordering and the names of the columns to obtain an object of class 'PanelMLCM'
 #' to be used by the function 'MLCM'.
 #'
-#' @param y Character, name of the column containing the outcome variable.
+#' @param y Numeric, the outcome variable.
 #' @param x Matrix or data.frame of covariates to include in the model.
-#' @param timevar  Character, name of the column containing the time variable.
-#' @param id Character, name of the column containing the ID's.
+#' @param timevar  The column containing the time variable. It can be numeric, integer or
+#'                 a date object
+#' @param id Numeric, the column containing the ID's.
+#'
+#' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
+#' users full flexibility in the choice of the ML algorithms and during the panel cross validation.
+#' See the documentation of the function \code{PanelCrossValidation}.
 #'
 #' @return An object of class 'data.frame' and 'PanelMLCM'.
 #' @export
-#' @example
+#' @examples
+#'
+#' # Start from a disorganized panel dataset
+#' head(data)
+#'
+#' # Run as.PanelMLCM
+#' newdata <- as.PanelMLCM(as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+#'                                      x = data[, !(names(data) %in% c("Y", "ID", "year"))]))
+#'
+#' # Results
+#' head(newdata)
 
 as.PanelMLCM <- function(y, x, timevar, id){
 

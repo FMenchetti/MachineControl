@@ -7,19 +7,37 @@
 as.PanelMLCM(y, x, timevar, id)
 }
 \arguments{
-\item{y}{Character, name of the column containing the outcome variable.}
+\item{y}{Numeric, the outcome variable.}
 
 \item{x}{Matrix or data.frame of covariates to include in the model.}
 
-\item{timevar}{Character, name of the column containing the time variable.}
+\item{timevar}{The column containing the time variable. It can be numeric, integer or
+a date object}
 
-\item{id}{Character, name of the column containing the ID's.}
+\item{id}{Numeric, the column containing the ID's.}
 }
 \value{
 An object of class 'data.frame' and 'PanelMLCM'.
 }
 \description{
 This function takes as input the panel dataset given by the user and changes the
-ordering and the names of the columns to obtain another data.frame of class 'PanelMLCM'
-to be used by the function 'MLCM'. The function is for internal use (not exported).
+ordering and the names of the columns to obtain an object of class 'PanelMLCM'
+to be used by the function 'MLCM'.
+}
+\details{
+This function is mainly for internal use of \code{MLCM}. It is exported to give
+users full flexibility in the choice of the ML algorithms and during the panel cross validation.
+See the documentation of the function \code{PanelCrossValidation}.
+}
+\examples{
+
+# Start from a disorganized panel dataset
+head(data)
+
+# Run as.PanelMLCM
+newdata <- as.PanelMLCM(as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+                                     x = data[, !(names(data) \%in\% c("Y", "ID", "year"))]))
+
+# Results
+head(newdata)
 }

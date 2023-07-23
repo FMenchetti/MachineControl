@@ -16,8 +16,8 @@ PanelCrossValidation <- function(data, post_period, blocked = pcv_block, metric 
   if(length(unique(data[, "Time"])) - 2 - blocked < 1) stop("Panel cross validation must be performed in at least one time period")
   if(blocked <= 0) stop("The number of 'blocked' time periods for panel cross validation must be at least 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  if(!is.list(ML_methods)|length(ML_methods) != 2) stop("ML_methods must be a list of length 2")
-  if(!names(ML_methods) %in% c("method", "tuneGrid")) stop("ML_methods must be a named list, check documentation")
+  if(is.list(ML_methods)){if(length(ML_methods) != 2) stop("ML_methods must be a list of length 2")}
+  if(is.list(ML_methods)){if(!names(ML_methods) %in% c("method", "tuneGrid")) stop("ML_methods must be a named list, check documentation")}
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
   Tt <- length(unique(data[, "Time"]))

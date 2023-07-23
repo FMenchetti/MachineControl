@@ -4,7 +4,17 @@
 \alias{MLCM}
 \title{Machine Learning Control Method}
 \usage{
-MLCM(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1)
+MLCM(
+  data,
+  y,
+  timevar,
+  id,
+  post_period,
+  inf_type,
+  nboot = 1000,
+  pcv_block = 1,
+  metric = "RMSE"
+)
 }
 \arguments{
 \item{data}{A panel dataset in long form, having one column for the time variable, one column for the units'
@@ -23,6 +33,9 @@ unique IDs, one column for the outcome variable and one or more columns for the 
 \item{nboot}{Number of bootstrap replications, defaults to 1000.}
 
 \item{pcv_block}{Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.}
+
+\item{metric}{Character, the performance metric that should be used to select the optimal model.
+Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 }
 \value{
 A list with the following components:
@@ -56,6 +69,15 @@ exogenous covariates, control series can also be added in the panel dataset. The
 will automatically treat every column that is left as additional information to improve the
 prediction of the counterfactual post-intervention outcome.
 
+By default, the function internally uses \code{as.PanelMLCM} to organize a messy panel dataset and
+then compares the performance of two linear models (Partial Least Squares and LASSO)
+and two non-linear models (Random Forests and Stochastic Gradient Boosting) in one-step ahead
+predictions by running internally the panel cross validation routine. The comparison is performed based on
+the \code{metric} provided by the users and lasts until the end of the pre-intervention period.
+Different ML algorithms can be selected by the user among all the options available in the \code{caret}
+package. In this case, the users must start from a tidy panel dataset (from a previous call to \code{as.PanelMLCM})
+and must execute their own panel cross validation. See the examples below.
+
 The user can choose among many different bootstrap algorithms. For details see the documentation
 of the function \code{boot_fun}. For details on the PCV see the documentation of the function
 \code{PanelCrossValidation}.
@@ -67,4 +89,16 @@ training sample will be formed by the observations on the first two time periods
 performed on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time.
 For example, by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number
 of validation sets to 3 instead of 6.
+}
+\examples{
+
+### Example 1. Running MLCM with the default options
+
+# Causal effect estimation of a policy occurred in 2020
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic")
+fit$ate
+
+# Bootstrap confidence interval
+c(fit$lower.ate, fit$upper.ate)
+
 }
