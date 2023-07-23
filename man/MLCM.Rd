@@ -95,10 +95,10 @@ of validation sets to 3 instead of 6.
 ### Example 1. Running MLCM with the default options
 
 # Causal effect estimation of a policy occurred in 2020
-fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic")
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10)
 fit$ate
 
 # Bootstrap confidence interval
-c(fit$lower.ate, fit$upper.ate)
+c(fit$ate.lower, fit$ate.upper)
 
 }

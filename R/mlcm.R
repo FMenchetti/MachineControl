@@ -80,11 +80,11 @@
 #' ### Example 1. Running MLCM with the default options
 #'
 #' # Causal effect estimation of a policy occurred in 2020
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic")
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10)
 #' fit$ate
 #'
 #' # Bootstrap confidence interval
-#' c(fit$lower.ate, fit$upper.ate)
+#' c(fit$ate.lower, fit$ate.upper)
 #'
 MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE"){
 
@@ -154,8 +154,8 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
 #' head(data)
 #'
 #' # Run as.PanelMLCM
-#' newdata <- as.PanelMLCM(as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-#'                                      x = data[, !(names(data) %in% c("Y", "ID", "year"))]))
+#' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))])
 #'
 #' # Results
 #' head(newdata)

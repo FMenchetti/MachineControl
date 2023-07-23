@@ -35,8 +35,8 @@ See the documentation of the function \code{PanelCrossValidation}.
 head(data)
 
 # Run as.PanelMLCM
-newdata <- as.PanelMLCM(as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-                                     x = data[, !(names(data) \%in\% c("Y", "ID", "year"))]))
+newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))])
 
 # Results
 head(newdata)
