@@ -113,8 +113,8 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
 #' Structuring the panel dataset
 #'
 #' This function takes as input the panel dataset given by the user and changes the
-#' ordering and the names of the columns to obtain another data.frame of class 'PanelMLCM'
-#' to be used by the function 'MLCM'. The function is for internal use (not exported).
+#' ordering and the names of the columns to obtain an object of class 'PanelMLCM'
+#' to be used by the function 'MLCM'.
 #'
 #' @param y Character, name of the column containing the outcome variable.
 #' @param x Matrix or data.frame of covariates to include in the model.
@@ -122,7 +122,8 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
 #' @param id Character, name of the column containing the ID's.
 #'
 #' @return An object of class 'data.frame' and 'PanelMLCM'.
-#'
+#' @export
+#' @example
 
 as.PanelMLCM <- function(y, x, timevar, id){
 
