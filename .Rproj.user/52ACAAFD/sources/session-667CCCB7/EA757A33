@@ -3,7 +3,7 @@
     "path": "~/GitHub/MLCM/DESCRIPTION",
     "project_path": "DESCRIPTION",
     "type": "dcf",
-    "hash": "0",
+    "hash": "2048628655",
     "contents": "",
     "dirty": false,
     "created": 1690119038910.0,
@@ -11,14 +11,16 @@
     "relative_order": 4,
     "properties": {
         "source_window_id": "",
-        "Source": "Source"
+        "Source": "Source",
+        "cursorPosition": "5,102",
+        "scrollLine": "1"
     },
     "folds": "",
-    "lastKnownWriteTime": 1690118993,
+    "lastKnownWriteTime": 1690128527,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1690118993,
+    "last_content_update": 1690128527666,
     "read_only": false,
     "read_only_alternatives": []
 }
