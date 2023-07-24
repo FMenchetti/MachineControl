@@ -33,6 +33,7 @@
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #'
 #' @details
 #' The panel \code{data} must at least include the response variable, a column of the time variable,
@@ -86,7 +87,7 @@
 #' # Bootstrap confidence interval
 #' c(fit$ate.lower, fit$ate.upper)
 #'
-MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE"){
+MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
@@ -97,14 +98,26 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
   if(class(id) != "character") stop("id must be a character")
   if(!(id %in% colnames(data))) stop (paste("there is no column called", id, "in 'data'"))
   if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
+  if(!(post_period %in% data[, timevar])) stop("post_period must be contained in timevar")
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
+  if(!is.null(PCV) & !"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")
 
   ### Structuring the panel dataset in the required format
   data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
                              x = data[, !(names(data) %in% c(y, id, timevar))])
 
   ### Panel cross-validation
-  best <- PanelCrossValidation(data = data_panel, post_period = post_period, pcv_block = pcv_block, metric = metric)
+  if(is.null(PCV)){
+
+    best <- PanelCrossValidation(data = data_panel, post_period = post_period, pcv_block = pcv_block, metric = metric)
+
+  } else {
+
+    best <- PCV
+
+  }
+
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
   ind <- which(data_panel[, "Time"] < post_period)

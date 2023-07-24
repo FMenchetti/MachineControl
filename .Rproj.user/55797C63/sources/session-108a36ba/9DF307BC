@@ -1,26 +1,24 @@
 {
-    "id": "9E74BC49",
-    "path": "~/GitHub/MLCM/R/mlcm.R",
-    "project_path": "R/mlcm.R",
+    "id": "9DF307BC",
+    "path": "~/GitHub/MLCM/R/bootstrap.R",
+    "project_path": "R/bootstrap.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1690188971821.0,
+    "created": 1690205783282.0,
     "source_on_save": false,
-    "relative_order": 3,
+    "relative_order": 4,
     "properties": {
         "source_window_id": "",
-        "Source": "Source",
-        "cursorPosition": "114,10",
-        "scrollLine": "120"
+        "Source": "Source"
     },
     "folds": "",
-    "lastKnownWriteTime": 1690206627,
+    "lastKnownWriteTime": 1690183082,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1690206627961,
+    "last_content_update": 1690183082,
     "read_only": false,
     "read_only_alternatives": []
 }
