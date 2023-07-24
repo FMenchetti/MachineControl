@@ -6,25 +6,26 @@
 \usage{
 MLCM(
   data,
-  y,
-  timevar,
-  id,
+  y = NULL,
+  timevar = NULL,
+  id = NULL,
   post_period,
   inf_type,
   nboot = 1000,
   pcv_block = 1,
-  metric = "RMSE"
+  metric = "RMSE",
+  PCV = NULL
 )
 }
 \arguments{
 \item{data}{A panel dataset in long form, having one column for the time variable, one column for the units'
 unique IDs, one column for the outcome variable and one or more columns for the covariates.}
 
-\item{y}{Character, name of the column containing the outcome variable.}
+\item{y}{Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.}
 
-\item{timevar}{Character, name of the column containing the time variable.}
+\item{timevar}{Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.}
 
-\item{id}{Character, name of the column containing the ID's.}
+\item{id}{Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.}
 
 \item{post_period}{The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.}
 
@@ -36,6 +37,8 @@ unique IDs, one column for the outcome variable and one or more columns for the 
 
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
+
+\item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
 }
 \value{
 A list with the following components:

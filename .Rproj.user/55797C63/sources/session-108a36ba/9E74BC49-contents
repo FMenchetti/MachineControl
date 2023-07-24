@@ -24,9 +24,9 @@
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
 #'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
-#' @param y           Character, name of the column containing the outcome variable.
-#' @param timevar     Character, name of the column containing the time variable.
-#' @param id          Character, name of the column containing the ID's.
+#' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
 #' @param post_period The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
@@ -87,25 +87,36 @@
 #' # Bootstrap confidence interval
 #' c(fit$ate.lower, fit$ate.upper)
 #'
-MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL){
+MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL){
 
   ### Parameter checks
-  if(!any(class(data) %in% c("matrix", "data.frame"))) stop("data must be a matrix or a data.frame")
-  if(class(y) != "character") stop("y must be a character")
-  if(!(y %in% colnames(data))) stop (paste("there is no column called", y, "in 'data'"))
-  if(class(timevar) != "character") stop("timevar must be a character")
-  if(!(timevar %in% colnames(data))) stop (paste("there is no column called", timevar, "in 'data'"))
-  if(class(id) != "character") stop("id must be a character")
-  if(!(id %in% colnames(data))) stop (paste("there is no column called", id, "in 'data'"))
+  if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
+  if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("Unspecified columns in 'matrix' or 'data.frame' data")
+  if(!(is.null(y) | class(y) == "character")) stop("y must be a character")
+  if(!(is.null(timevar) | class(timevar) == "character")) stop("timevar must be a character")
+  if(!(is.null(id) | class(id) == "character")) stop("id must be a character")
+  if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
+  if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
+  if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
   if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
-  if(!(post_period %in% data[, timevar])) stop("post_period must be contained in timevar")
+  if(is.null(timevar)){if(!post_period %in% data[, "Time"]) stop ("post_period must be contained in the 'Time' column")}
+  if(!is.null(timevar)){if(!post_period %in% data[, timevar]) stop ("post_period must be contained in timevar")}
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  if(!is.null(PCV) & !"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")
+  if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
 
   ### Structuring the panel dataset in the required format
-  data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                             x = data[, !(names(data) %in% c(y, id, timevar))])
+  if("PanelMLCM" %in% class(data)){
+
+    data_panel <- data
+
+  } else {
+
+    data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                               x = data[, !(names(data) %in% c(y, id, timevar))])
+
+  }
+
 
   ### Panel cross-validation
   if(is.null(PCV)){

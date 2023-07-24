@@ -61,6 +61,7 @@
 #' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl)
 #'
 #' ### Example 2. Changing ML methods
+#'
 #' enet <- list(method = "enet",
 #'             tuneGrid = expand.grid(
 #'               fraction = seq(0.1, 0.9, by = 0.1),
@@ -72,8 +73,9 @@
 #'
 #' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, ML_methods = list(enet, linreg))
 #'
-#' ### Example 3. Changing ML methods and trControl
+#' ### Example 3. Changing ML methods and trControl and estimating ATE
 #' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl, ML_methods = list(enet, linreg))
+#' causal <- MLCM(data = newdata, post_period = 2020, inf_type = "block", PCV = pcv)
 
 PanelCrossValidation <- function(data, post_period, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
 
