@@ -10,6 +10,11 @@
 
 #' Panel Cross Validation
 #'
+#' This function implements the panel cross validation technique as described in
+#' Cerqua A., Letta M. & Menchetti F., (2023) <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>.
+#' It works as a rolling window training and testing procedure where the ML methods are trained recursively on the
+#' the observations in the first $t$ time periods and tested in the prediction of the next $t+1$ period.
+#'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
 #' @param post_period The post-intervention period where the causal effect should be computed.
 #' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
@@ -20,6 +25,22 @@
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
 #'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
 #' @return A list of class \code{train} with the best-performing ML method.
+#'
+#' @details
+#' To speed up #' computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
+#' (the default) indicates to use the observations in the first time period as the first training sample and to test on the next period.
+#' Then, the second training sample will be formed by the observations on the first two time periods and validation will be performed
+#' on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time. For example,
+#' by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number of validation sets to 3 instead of 6.
+#'
+#' By default, the panel cross validation routine compares two linear models (Partial Least Squares and LASSO) and two non-linear models
+#' (Random Forests and Stochastic Gradient Boosting) in the prediction of the outcome in the testing sets. The default specification
+#' is used internally by the \code{MLCM} function that records the best-performing ML algorithm and use it to estimate the ATE of the treatment.
+#' Users can also change the default ML methods by the argument \code{ML_method}, a list of as many components as the ML methods that the users want
+#' to try. Each element of \code{ML_method} should be a list of two elements: \code{method} must be a character with the method name from all the
+#' ones available in \code{caret}; \code{tuneGrid} is a grid of parameter values to tune via the panel cross validation. See Example 2 for an
+#' illustration.
+#'
 #' @export
 #'
 #' @examples
