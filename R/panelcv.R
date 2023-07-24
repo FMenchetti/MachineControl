@@ -10,17 +10,50 @@
 
 #' Panel Cross Validation
 #'
-#' @param data
-#' @param post_period
-#' @param blocked
-#' @param metric
-#' @param trControl
-#' @param ML_methods
-#'
-#' @return
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param post_period The post-intervention period where the causal effect should be computed.
+#' @param blocked Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
+#' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
+#'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
+#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
+#' @return A list of class \code{train} with the best-performing ML method.
 #' @export
 #'
 #' @examples
+#'
+#' ### Example 1. Changing the default training method
+#'
+#' # Organizing the dataset
+#' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))])
+#'
+#' # Using the first two years for training and the last two years for testing
+#' indices <- CreateSpacetimeFolds(newdata, timevar = "Time", k = 5)
+#' trainx <- indices$indexOut[1:2]
+#' testx <- indices$indexOut[3:4]
+#' ctrl <- trainControl(index = trainx, indexOut = testx)
+#'
+#' # Customized panel cross validation
+#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl)
+#'
+#' ### Example 2. Changing ML methods
+#' enet <- list(method = "enet",
+#'             tuneGrid = expand.grid(
+#'               fraction = seq(0.1, 0.9, by = 0.1),
+#'               lambda = seq(0.1, 0.9, by = 0.1)))
+#'
+#' linreg <- list(method = "lm",
+#'               tuneGrid = expand.grid(
+#'                 intercept = seq(0, 10, by = 0.5)))
+#'
+#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, ML_methods = list(enet, linreg))
+#'
+#' ### Example 3. Changing ML methods and trControl
+#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl, ML_methods = list(enet, linreg))
+
 PanelCrossValidation <- function(data, post_period, blocked = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
