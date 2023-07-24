@@ -12,7 +12,7 @@
 #'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
 #' @param post_period The post-intervention period where the causal effect should be computed.
-#' @param blocked Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric Character, the performance metric that should be used to select the optimal model.
 #'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
@@ -54,13 +54,13 @@
 #' ### Example 3. Changing ML methods and trControl
 #' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl, ML_methods = list(enet, linreg))
 
-PanelCrossValidation <- function(data, post_period, blocked = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+PanelCrossValidation <- function(data, post_period, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(!(post_period %in% data[, "Time"])) stop("post_period must be contained in timevar")
-  if(length(unique(data[, "Time"])) - 2 - blocked < 1) stop("Panel cross validation must be performed in at least one time period")
-  if(blocked <= 0) stop("The number of 'blocked' time periods for panel cross validation must be at least 1")
+  if(length(unique(data[, "Time"])) - 2 - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
+  if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(is.list(ML_methods)){if(any(sapply(ML_methods, FUN = length) != 2)) stop("'ML_methods' must be a list of methods, each of length 2")}
   if(is.list(ML_methods)){
@@ -70,8 +70,8 @@ PanelCrossValidation <- function(data, post_period, blocked = 1, metric = "RMSE"
   Tt <- length(unique(data[, "Time"]))
   post_period <- post_period
   indices <- CreateSpacetimeFolds(data, timevar = "Time", k = Tt)
-  trainx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
-  testx <- lapply(blocked:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
+  trainx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
+  testx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
 
   ### STEP 2. Set control function by specifying the training and testing folds that caret will use
   ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)

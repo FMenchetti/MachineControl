@@ -104,7 +104,7 @@ MLCM <- function(data, y, timevar, id, post_period, inf_type, nboot = 1000, pcv_
                              x = data[, !(names(data) %in% c(y, id, timevar))])
 
   ### Panel cross-validation
-  best <- PanelCrossValidation(data = data_panel, post_period = post_period, blocked = pcv_block, metric = metric)
+  best <- PanelCrossValidation(data = data_panel, post_period = post_period, pcv_block = pcv_block, metric = metric)
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
   ind <- which(data_panel[, "Time"] < post_period)
