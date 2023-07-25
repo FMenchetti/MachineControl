@@ -8,7 +8,7 @@
 ##
 ###############################################################################
 
-boot_fun <- function(data, ind, bestt, type, nboot, ate = NULL){
+boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
 
   ### Step 1. Sampling indices
   if(type %in% c("classic", "bc classic", "bca")){
