@@ -15,7 +15,8 @@ MLCM(
   pcv_block = 1,
   metric = "RMSE",
   PCV = NULL,
-  CATE = FALSE
+  CATE = FALSE,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -42,6 +43,9 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 \item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
 
 \item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.}
+
+\item{alpha}{Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+95\% confidence interval.}
 }
 \value{
 A list with the following components:

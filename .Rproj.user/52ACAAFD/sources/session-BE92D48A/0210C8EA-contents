@@ -35,7 +35,8 @@
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
-#'
+#' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+#'                    95\% confidence interval.
 #' @details
 #' The panel \code{data} must at least include the response variable, a column of the time variable,
 #' and a column with the unit identifiers. Lagged values of the outcome, lagged or contemporaneous
@@ -103,7 +104,7 @@
 #' c(fit$ate.lower, fit$ate.upper)
 #'
 
-MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE){
+MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -121,6 +122,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
 
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
@@ -164,14 +166,14 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ate <- mean(obs - pred)
 
   ### Inference
-  boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
+  boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha)
 
   ### CATE
   if(CATE){
 
     data_cate <- data.frame(effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
     cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs))
-    cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot)
+    cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot, alpha = alpha)
 
   } else {
 

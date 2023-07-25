@@ -32,13 +32,14 @@
 # }
 
 
-boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
+boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
   if(!any(type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
   if(!is.numeric(ate)) stop ("ATE must be numeric")
 
   ### Step 1. Sampling indices
@@ -73,7 +74,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
   })
 
   mean_ate_boot <- colMeans(ate_boot)
-  conf.ate <- quantile(mean_ate_boot, probs = c(0.025, 0.975))
+  conf.ate <- quantile(mean_ate_boot, probs = c(alpha/2, 1 - alpha/2))
 
   ### Step 3. Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block" or "bca")
 
@@ -81,8 +82,8 @@ boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
 
     # Bias correction
     z0 <- qnorm(sum(mean_ate_boot < ate)/nboot)
-    lower <- pnorm(2*z0 + qnorm(0.025))
-    upper <- pnorm(2*z0 + qnorm(0.975))
+    lower <- pnorm(2*z0 + qnorm(alpha/2))
+    upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
     conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper))
 
   }
@@ -91,7 +92,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
 
     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, ind))-1)))
     Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate)
-    out2 <- bcajack2(B = Blist) ## doesn't work
+    out2 <- bcajack2(B = Blist)
     conf.ate <- out2$lims[c(1,9),"bca"]
 
   }
@@ -120,12 +121,13 @@ boot_ate <- function(data, ind, bestt, type, nboot, ate = NULL){
 # each node, estimated variance and confidence interval (upper and lower bound)
 # estimated by bootstrap. Each column corresponds to a terminal node of the tree.
 
-boot_cate <- function(effect, cate, nboot){
+boot_cate <- function(effect, cate, nboot, alpha){
 
   ### Param checks
   if(!is.numeric(effect)) stop("effect must be a numeric vector")
   if(class(cate) != "rpart") stop ("cate must be an 'rpart' object")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
 
   ### Bootstrapping
   terminal.nodes <- cate$where
@@ -135,7 +137,7 @@ boot_cate <- function(effect, cate, nboot){
                                                               nrow = nboot, ncol = length(y));
                                           mean.cate <- rowMeans(boot.dist);
                                           var.cate <- var(mean.cate);
-                                          conf.cate <- quantile(mean.cate, probs = c(0.025, 0.975));
+                                          conf.cate <- quantile(mean.cate, probs = c(alpha/2, 1 - alpha/2));
                                           c(cate = mean(y), var.cate = var.cate, cate.lower = conf.cate[1], cate.upper = conf.cate[2])},
               SIMPLIFY = TRUE)
   colnames(node.inf) <- paste0("Node_", x)
