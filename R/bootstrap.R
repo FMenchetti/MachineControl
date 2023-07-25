@@ -102,7 +102,7 @@ boot_cate <- function(effect, cate, nboot){
   node.inf <- mapply(x, FUN = function(x){y <- effect[which(terminal.nodes == x)];
                                           boot.dist <- matrix(sample(y, size = nboot*length(y), replace = TRUE),
                                                               nrow = nboot, ncol = length(y));
-                                          mean.cate <- colMeans(boot.dist);
+                                          mean.cate <- rowMeans(boot.dist);
                                           var.cate <- var(mean.cate);
                                           conf.cate <- quantile(mean.cate, probs = c(0.025, 0.975));
                                           c(cate = mean(y), var.cate = var.cate, cate.lower = conf.cate[1], cate.upper = conf.cate[2])},
