@@ -167,18 +167,20 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
 
     data_cate <- data.frame(effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
     cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs))
+    cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot)
 
   } else {
 
     cate <- NULL
-
+    cate.inf <- NULL
   }
+
 
   #options(scipen=999)
   #prp(model.rpart, fallen.leaves = FALSE, box.col="lightgray", type = 3, branch=1, branch.lty= 1,   main="Data-driven CATEs")
 
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper, cate = cate))
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper, cate = cate, cate.inf = cate.inf))
   # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
 }
 

@@ -95,3 +95,19 @@ boot_fun <- function(data, ind, bestt, type, nboot, ate = NULL){
   return(list(type = type, ate_boot = ate_boot, conf.ate = conf.ate, var.ate = var(mean_ate_boot), ate.lower = conf.ate[1], ate.upper = conf.ate[2]))
 }
 
+boot_cate <- function(effect, cate, nboot){
+
+  terminal.nodes <- cate$where
+  x <- unique(terminal.nodes)
+  node.inf <- mapply(x, FUN = function(x){y <- effect[which(terminal.nodes == x)];
+                                          boot.dist <- matrix(sample(y, size = nboot*length(y), replace = TRUE),
+                                                              nrow = nboot, ncol = length(y));
+                                          mean.cate <- colMeans(boot.dist);
+                                          var.cate <- var(mean.cate);
+                                          conf.cate <- quantile(mean.cate, probs = c(0.025, 0.975));
+                                          c(cate = mean(y), var.cate = var.cate, cate.lower = conf.cate[1], cate.upper = conf.cate[2])},
+              SIMPLIFY = TRUE)
+  colnames(node.inf) <- paste0("Node_", x)
+  return(node.inf)
+
+}
