@@ -14,7 +14,8 @@ MLCM(
   nboot = 1000,
   pcv_block = 1,
   metric = "RMSE",
-  PCV = NULL
+  PCV = NULL,
+  CATE = FALSE
 )
 }
 \arguments{
@@ -39,6 +40,8 @@ unique IDs, one column for the outcome variable and one or more columns for the 
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
 \item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
+
+\item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.}
 }
 \value{
 A list with the following components:
@@ -92,14 +95,24 @@ training sample will be formed by the observations on the first two time periods
 performed on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time.
 For example, by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number
 of validation sets to 3 instead of 6.
+
+By default, the function estimates an Average Treatment Effect (ATE), but when \code{CATE = TRUE} it also estimates
+a Conditional Average Treatment Effect (CATE) as described in Cerqua A., Letta M. & Menchetti F.
+<https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>. In short, CATE is estimated with a regression tree
+and it is of interest when researchers suspect that the policy ('treatment' or 'intervention') has produced
+heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
+underlying assumptions see the paper cited above.
 }
 \examples{
 
-### Example 1. Running MLCM with the default options
+### Example 1. Estimating ATE and CATE (with default ML methods)
 
-# Causal effect estimation of a policy occurred in 2020
-fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10)
+# Estimation
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10, CATE = TRUE)
+
+# ATE & CATE
 fit$ate
+plot(fit$cate) ; text(fit$cate)
 
 # Bootstrap confidence interval
 c(fit$ate.lower, fit$ate.upper)

@@ -34,6 +34,7 @@
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
+#' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
 #'
 #' @details
 #' The panel \code{data} must at least include the response variable, a column of the time variable,
@@ -63,6 +64,14 @@
 #' For example, by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number
 #' of validation sets to 3 instead of 6.
 #'
+#' By default, the function estimates an Average Treatment Effect (ATE), but when \code{CATE = TRUE} it also estimates
+#' a Conditional Average Treatment Effect (CATE) as described in Cerqua A., Letta M. & Menchetti F.
+#' <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>. In short, CATE is estimated with a regression tree
+#' and it is of interest when researchers suspect that the policy ('treatment' or 'intervention') has produced
+#' heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
+#' underlying assumptions see the paper cited above.
+#'
+#'
 #' @return A list with the following components:
 #' \itemize{
 #'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
@@ -78,16 +87,20 @@
 #'
 #' @examples
 #'
-#' ### Example 1. Running MLCM with the default options
+#' ### Example 1. Estimating ATE and CATE (with default ML methods)
 #'
-#' # Causal effect estimation of a policy occurred in 2020
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10)
+#' # Estimation
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10, CATE = TRUE)
+#'
+#' # ATE & CATE
 #' fit$ate
+#' plot(fit$cate) ; text(fit$cate)
 #'
 #' # Bootstrap confidence interval
 #' c(fit$ate.lower, fit$ate.upper)
 #'
-MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL){
+
+MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -149,8 +162,23 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ### Inference
   boot_inf <- boot_fun(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
 
+  ### CATE
+  if(CATE){
+
+    data_cate <- data.frame(effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
+    cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs))
+
+  } else {
+
+    cate <- NULL
+
+  }
+
+  #options(scipen=999)
+  #prp(model.rpart, fallen.leaves = FALSE, box.col="lightgray", type = 3, branch=1, branch.lty= 1,   main="Data-driven CATEs")
+
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper))
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper, cate = cate))
   # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
 }
 

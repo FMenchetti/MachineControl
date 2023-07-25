@@ -1,0 +1,20 @@
+######################################################
+###   DATA-DRIVEN CATEs  ###
+#loading the dataset
+dataset <- read.csv("G:\\.shortcut-targets-by-id\\1i5-qtC1rjP-qk_Qyip_3Cvz0sVoPwyLK\\Big data comunali\\Big data comunali - output files\\Income application\\data and codes\\gini\\GINI SLL\\new codes and results\\WP CODE\\CATE Dataset.csv")
+names(dataset)
+dataset <- dataset[,c(2:6,9:20,22:24)]
+#loading packages
+library(party)
+library(rpart)
+library(maptree)
+library(partykit)
+library(rpart.plot)
+##### (1) Outcome variable: 2020 Gini index change #####
+# Regression tree on the 2020 inequality effects #
+model.rpart <- rpart(teffect ~ ., method="anova", data=dataset, cp=0, minbucket=29) # set the complexity parameter equal to zero so that the tree is not pruned; set minbucket equal to a number which ensures the interpretability of the output tree: here we set it at 5% of the observations
+options(scipen=999)
+prp(model.rpart, fallen.leaves = FALSE, box.col="lightgray", type = 3, branch=1, branch.lty= 1,   main="Data-driven CATEs")
+#Exporting variable importance ranking
+#importance <- model.rpart$variable.importance
+#write.csv(importance, "imp.txt", row.names = TRUE)

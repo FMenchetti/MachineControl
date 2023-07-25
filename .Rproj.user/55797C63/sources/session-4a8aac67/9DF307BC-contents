@@ -21,7 +21,7 @@ boot_fun <- function(data, ind, bestt, type, nboot, ate = NULL){
 
     ids <- unique(data$ID)
     ii <- t(sapply(1:nboot, function(boot){set.seed(boot); ind1 <- sample(ids, size = length(ids), replace = T);
-    unlist(sapply(ind1, function(x)(intersect(which(data[, "ID"] %in% x), ind)), simplify = F))}))
+                                           unlist(sapply(ind1, function(x)(intersect(which(data[, "ID"] %in% x), ind)), simplify = F))}))
     # ind1 <- sample(unique(data$ID), round(length(unique(data$ID))*0.6), replace = T)
     # ind1 <- intersect(which(data[, "ID"] %in% ind1), ind)
     # Nota: anche qui non sto ricampionando un sottoinsieme ma tutte le unità con replacement
