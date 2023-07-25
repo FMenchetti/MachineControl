@@ -82,6 +82,9 @@
 #'   by the user in 'inf_type'
 #'   \item \code{ate.lower}: lower bound of a 95% bootstrap confidence interval
 #'   \item \code{ate.upper}: upper bound of a 95% bootstrap confidence interval
+#'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
+#'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
+#'   estimated by bootstrap
 #' }
 #' @export
 #'
