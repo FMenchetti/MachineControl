@@ -88,7 +88,7 @@ package. In this case, the users must start from a tidy panel dataset (from a pr
 and must execute their own panel cross validation. See the examples below.
 
 The user can choose among many different bootstrap algorithms. For details see the documentation
-of the function \code{boot_fun}. For details on the PCV see the documentation of the function
+of the function \code{boot_ate}. For details on the PCV see the documentation of the function
 \code{PanelCrossValidation}.
 
 To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the

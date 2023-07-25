@@ -53,7 +53,7 @@
 #' and must execute their own panel cross validation. See the examples below.
 #'
 #' The user can choose among many different bootstrap algorithms. For details see the documentation
-#' of the function \code{boot_fun}. For details on the PCV see the documentation of the function
+#' of the function \code{boot_ate}. For details on the PCV see the documentation of the function
 #' \code{PanelCrossValidation}.
 #'
 #' To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the
@@ -118,6 +118,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   if(is.null(timevar)){if(!post_period %in% data[, "Time"]) stop ("post_period must be contained in the 'Time' column")}
   if(!is.null(timevar)){if(!post_period %in% data[, timevar]) stop ("post_period must be contained in timevar")}
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
 
@@ -163,7 +164,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ate <- mean(obs - pred)
 
   ### Inference
-  boot_inf <- boot_fun(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
+  boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate)
 
   ### CATE
   if(CATE){
