@@ -88,13 +88,29 @@
 #'   estimated by bootstrap
 #' }
 #' @export
+#' @import caret
+#' @importFrom rpart rpart
+#' @importFrom bcaboot bcajack2
+#' @importFrom CAST CreateSpacetimeFolds
+#' @importFrom gbm gbm
+#' @importFrom elasticnet enet
+#' @importFrom pls plsr
+#' @importFrom randomForest randomForest
+#' @importFrom utils capture.output
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
 #'
 #' @examples
 #'
 #' ### Example 1. Estimating ATE and CATE (with default ML methods)
 #'
 #' # Estimation
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10, CATE = TRUE)
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020,
+#'             inf_type = "classic", nboot = 10, CATE = TRUE)
 #'
 #' # ATE & CATE
 #' fit$ate
@@ -164,7 +180,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ))
 
   obs <- data_panel[-ind, "Y"]
-  pred <- predict(fit, newdata = data_panel[-ind, ])
+  pred <- caret::predict.train(fit, newdata = data_panel[-ind, ])
 
   ### ATE
   ate <- mean(obs - pred)

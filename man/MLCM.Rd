@@ -115,7 +115,8 @@ underlying assumptions see the paper cited above.
 ### Example 1. Estimating ATE and CATE (with default ML methods)
 
 # Estimation
-fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020, inf_type = "classic", nboot = 10, CATE = TRUE)
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020,
+            inf_type = "classic", nboot = 10, CATE = TRUE)
 
 # ATE & CATE
 fit$ate

@@ -8,28 +8,37 @@
 ##
 ###############################################################################
 
-# Bootstrap inference for ATE
-#
-# Internal function, used within the MLCM routine for the estimation of ATE
-# standard error and 95% confidence interval.
-#
-# @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
-# @param ind  Vector indicating pre-intervention time points.
-# @param bestt Object of class \code{train}, the best-performing ML method as selected
-#              by panel cross validation.
-# @param type Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
-# @param nboot Number of bootstrap replications.
-# @param ate Numeric, the estimated ATE in the sample.
-#
-# @return A list with the following components:
-# \itemize{
-#   \item \code{type}: the inference type that has been performed
-#   \item \code{ate.boot}: the bootstrap distribution for ATE
-#   \item \code{conf.ate}: bootstrap confidence interval at the 95% level
-#   \item \code{var.ate}: estimated variance for ATE
-#   \item \code{ate.lower}: lower confidence interval bound
-#   \item \code{ate.upper}: upper confidence interval bound
-# }
+#' Bootstrap inference for ATE
+#'
+#' Internal function, used within the MLCM routine for the estimation of ATE
+#' standard error and 95% confidence interval.
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param ind  Vector indicating pre-intervention time points.
+#' @param bestt Object of class \code{train}, the best-performing ML method as selected
+#'              by panel cross validation.
+#' @param type Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
+#' @param nboot Number of bootstrap replications.
+#' @param ate Numeric, the estimated ATE in the sample.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#'   \item \code{type}: the inference type that has been performed
+#'   \item \code{ate.boot}: the bootstrap distribution for ATE
+#'   \item \code{conf.ate}: bootstrap confidence interval at the 95% level
+#'   \item \code{var.ate}: estimated variance for ATE
+#'   \item \code{ate.lower}: lower confidence interval bound
+#'   \item \code{ate.upper}: upper confidence interval bound
+#' }
+#' @noRd
+#' @import caret
+#' @importFrom bcaboot bcajack2
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
 
 
 boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
@@ -65,10 +74,10 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
                   trControl = trainControl(method="none"),
                   tuneGrid = bestt$bestTune) ;
     obs <- data[-c(ind, i), "Y"] ;
-    eps <- data[i, "Y"] - predict(fitb)
+    eps <- data[i, "Y"] - caret::predict.train(fitb)
     # error <- sample(eps, size = nrow(data[-ind,]), replace = T) # verifica che sia così anche per block boot
     error <- rnorm(n = nrow(data[-ind,]), mean = mean(eps), sd = sd(eps))
-    pred <- predict(fitb, newdata = data[-c(ind, i), ]) + error ;
+    pred <- caret::predict.train(fitb, newdata = data[-c(ind, i), ]) + error ;
     #pred <- predict(fitb, newdata = data[-c(ind, i), ]) ;
     obs - pred
   })
@@ -102,24 +111,33 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
   return(list(type = type, ate.boot = ate_boot, conf.ate = conf.ate, var.ate = var(mean_ate_boot), ate.lower = conf.ate[1], ate.upper = conf.ate[2]))
 }
 
-# Bootstrap inference for CATE
-#
-# Internal function, used within the MLCM routine for the estimation of CATE
-# standard errors and 95% confidence intervals in each terminal node of the tree.
-# It works by resampling the observations at each final node of the tree.
-# Note that the observations are the estimated individual
-# causal effects (computed by comparing the observed data with the ML predictions).
-# Our estimand of interest is the average of the individual effects, so at each bootstrap
-# iteration we average the individual effects, obtaining a bootstrap distribution for the ATE
-# (which is in fact a CATE as we do that in each terminal node, i.e., conditionally on covariates).
-#
-# @param effect Numeric vector of estimated individual causal effects.
-# @param cate Object of class \code{rpart}, the estimated regression-tree-based CATE.
-# @param nboot Number of bootstrap replications.
-#
-# @return A matrix containing the following information: estimated CATE within
-# each node, estimated variance and confidence interval (upper and lower bound)
-# estimated by bootstrap. Each column corresponds to a terminal node of the tree.
+#' Bootstrap inference for CATE
+#'
+#' Internal function, used within the MLCM routine for the estimation of CATE
+#' standard errors and 95% confidence intervals in each terminal node of the tree.
+#' It works by resampling the observations at each final node of the tree.
+#' Note that the observations are the estimated individual
+#' causal effects (computed by comparing the observed data with the ML predictions).
+#' Our estimand of interest is the average of the individual effects, so at each bootstrap
+#' iteration we average the individual effects, obtaining a bootstrap distribution for the ATE
+#' (which is in fact a CATE as we do that in each terminal node, i.e., conditionally on covariates).
+#'
+#' @param effect Numeric vector of estimated individual causal effects.
+#' @param cate Object of class \code{rpart}, the estimated regression-tree-based CATE.
+#' @param nboot Number of bootstrap replications.
+#'
+#' @return A matrix containing the following information: estimated CATE within
+#' each node, estimated variance and confidence interval (upper and lower bound)
+#' estimated by bootstrap. Each column corresponds to a terminal node of the tree.
+#' @noRd
+#' @import caret
+#' @importFrom bcaboot bcajack2
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
 
 boot_cate <- function(effect, cate, nboot, alpha){
 
