@@ -153,12 +153,16 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ind <- which(data_panel[, "Time"] < post_period)
 
   set.seed(1)
-  fit <- train(Y ~ .,
-               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-               method = best$method,
-               metric = metric,
-               trControl = trainControl(method="none"),
-               tuneGrid = best$bestTune)
+
+  invisible(capture.output(
+    fit <- train(Y ~ .,
+                 data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+                 method = best$method,
+                 metric = metric,
+                 trControl = trainControl(method="none"),
+                 tuneGrid = best$bestTune)
+  ))
+
   obs <- data_panel[-ind, "Y"]
   pred <- predict(fit, newdata = data_panel[-ind, ])
 
@@ -166,7 +170,11 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ate <- mean(obs - pred)
 
   ### Inference
-  boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha)
+  invisible(capture.output(
+
+    boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha)
+
+  ))
 
   ### CATE
   if(CATE){
