@@ -1,4 +1,4 @@
-Package: MLCM
+Package: MachineControl
 Type: Package
 Title: Causal Inference for Panel Data with Machine Learning
 Version: 0.1.0
