@@ -9,7 +9,7 @@ MLCM(
   y = NULL,
   timevar = NULL,
   id = NULL,
-  post_period,
+  int_date,
   inf_type,
   nboot = 1000,
   pcv_block = 1,
@@ -29,7 +29,8 @@ unique IDs, one column for the outcome variable and one or more columns for the 
 
 \item{id}{Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.}
 
-\item{post_period}{The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.}
+\item{int_date}{The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
+By default, this is the first period that the causal effect should be computed for. See Details.}
 
 \item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
 
@@ -66,7 +67,7 @@ A list with the following components:
 \description{
 This function is the main workhorse of the package 'MachineControl'. It takes as
 input a panel dataset, i.e., multiple units observed at several points in time and
-exposed simultaneously to some policy (indicated by post_period). It then performs
+exposed simultaneously to some policy (indicated by int_date). It then performs
 the Panel Cross Validation (PCV) by comparing the predictive performance of several Machine
 Learning (ML) methods in the pre-intervention periods and then outputs the estimated
 Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
@@ -90,6 +91,9 @@ the \code{metric} provided by the users and lasts until the end of the pre-inter
 Different ML algorithms can be selected by the user among all the options available in the \code{caret}
 package. In this case, the users must start from a tidy panel dataset (from a previous call to \code{as.PanelMLCM})
 and must execute their own panel cross validation. See the examples below.
+
+By default, the function estimates the ATE by averaging the individual causal effects across units. This is done
+for each time period after \code{int_date} (the first ATE will be computed exactly at \code{int_date}).
 
 The user can choose among many different bootstrap algorithms. For details see the documentation
 of the function \code{boot_ate}. For details on the PCV see the documentation of the function
@@ -115,7 +119,7 @@ underlying assumptions see the paper cited above.
 ### Example 1. Estimating ATE and CATE (with default ML methods)
 
 # Estimation
-fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020,
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2020,
             inf_type = "classic", nboot = 10, CATE = TRUE)
 
 # ATE & CATE

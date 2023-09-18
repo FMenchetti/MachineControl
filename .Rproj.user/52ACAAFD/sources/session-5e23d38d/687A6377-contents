@@ -13,10 +13,10 @@
 #' This function implements the panel cross validation technique as described in
 #' Cerqua A., Letta M. & Menchetti F., (2023) <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>.
 #' It works as a rolling window training and testing procedure where the ML methods are trained recursively on the
-#' the observations in the first $t$ time periods and tested in the prediction of the next $t+1$ period.
+#' the observations in the first $t$ time periods and tested in the prediction of the next periods.
 #'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
-#' @param post_period The post-intervention period where the causal effect should be computed.
+#' @param int_date The date of the intervention, treatment, policy introduction or shock.
 #' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric Character, the performance metric that should be used to select the optimal model.
 #'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
@@ -27,7 +27,7 @@
 #' @return A list of class \code{train} with the best-performing ML method.
 #'
 #' @details
-#' To speed up #' computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
+#' To speed up computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
 #' (the default) indicates to use the observations in the first time period as the first training sample and to test on the next period.
 #' Then, the second training sample will be formed by the observations on the first two time periods and validation will be performed
 #' on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time. For example,
@@ -42,6 +42,21 @@
 #' illustration.
 #'
 #' @export
+#' @import caret
+#' @importFrom rpart rpart
+#' @importFrom bcaboot bcajack2
+#' @importFrom CAST CreateSpacetimeFolds
+#' @importFrom gbm gbm
+#' @importFrom elasticnet enet
+#' @importFrom pls plsr
+#' @importFrom randomForest randomForest
+#' @importFrom utils capture.output
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
 #'
 #' @examples
 #'
@@ -52,13 +67,13 @@
 #'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))])
 #'
 #' # Using the first two years for training and the last two years for testing
-#' indices <- CreateSpacetimeFolds(newdata, timevar = "Time", k = 5)
+#' indices <- CAST::CreateSpacetimeFolds(newdata, timevar = "Time", k = 5)
 #' trainx <- indices$indexOut[1:2]
 #' testx <- indices$indexOut[3:4]
 #' ctrl <- trainControl(index = trainx, indexOut = testx)
 #'
 #' # Customized panel cross validation
-#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl)
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl)
 #'
 #' ### Example 2. Changing ML methods
 #'
@@ -71,17 +86,19 @@
 #'               tuneGrid = expand.grid(
 #'                 intercept = seq(0, 10, by = 0.5)))
 #'
-#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, ML_methods = list(enet, linreg))
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020,
+#'                             ML_methods = list(enet, linreg))
 #'
 #' ### Example 3. Changing ML methods and trControl and estimating ATE
-#' pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl, ML_methods = list(enet, linreg))
-#' causal <- MLCM(data = newdata, post_period = 2020, inf_type = "block", PCV = pcv)
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl,
+#'                             ML_methods = list(enet, linreg))
+#' causal <- MLCM(data = newdata, int_date = 2020, inf_type = "block", PCV = pcv)
 
-PanelCrossValidation <- function(data, post_period, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
-  if(!(post_period %in% data[, "Time"])) stop("post_period must be contained in timevar")
+  if(!(int_date %in% data[, "Time"])) stop("int_date must be contained in timevar")
   if(length(unique(data[, "Time"])) - 2 - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
   if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
@@ -91,10 +108,14 @@ PanelCrossValidation <- function(data, post_period, pcv_block = 1, metric = "RMS
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
   Tt <- length(unique(data[, "Time"]))
-  post_period <- post_period
+  int_date <- int_date # questo è superfluo?
   indices <- CreateSpacetimeFolds(data, timevar = "Time", k = Tt)
-  trainx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x]))
-  testx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]]))
+  end <- sum(unique(data[, "Time"]) < (int_date - 1) )
+  trainx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[1:x]))
+  testx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[[x+1]]))
+  # trainx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x])) # old
+  # testx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]])) # old
+
 
   ### STEP 2. Set control function by specifying the training and testing folds that caret will use
   ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)
@@ -179,3 +200,4 @@ PanelCrossValidation <- function(data, post_period, pcv_block = 1, metric = "RMS
   return(best = m_list[[ind]])
 
 }
+

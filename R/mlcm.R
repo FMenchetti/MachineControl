@@ -12,7 +12,7 @@
 #'
 #' This function is the main workhorse of the package 'MachineControl'. It takes as
 #' input a panel dataset, i.e., multiple units observed at several points in time and
-#' exposed simultaneously to some policy (indicated by post_period). It then performs
+#' exposed simultaneously to some policy (indicated by int_date). It then performs
 #' the Panel Cross Validation (PCV) by comparing the predictive performance of several Machine
 #' Learning (ML) methods in the pre-intervention periods and then outputs the estimated
 #' Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
@@ -27,7 +27,8 @@
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
-#' @param post_period The post-intervention period where the causal effect should be computed. It must be contained in 'timevar'.
+#' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
+#'                    By default, this is the first period that the causal effect should be computed for. See Details.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
@@ -52,6 +53,9 @@
 #' Different ML algorithms can be selected by the user among all the options available in the \code{caret}
 #' package. In this case, the users must start from a tidy panel dataset (from a previous call to \code{as.PanelMLCM})
 #' and must execute their own panel cross validation. See the examples below.
+#'
+#' By default, the function estimates the ATE by averaging the individual causal effects across units. This is done
+#' for each time period after \code{int_date} (the first ATE will be computed exactly at \code{int_date}).
 #'
 #' The user can choose among many different bootstrap algorithms. For details see the documentation
 #' of the function \code{boot_ate}. For details on the PCV see the documentation of the function
@@ -109,7 +113,7 @@
 #' ### Example 1. Estimating ATE and CATE (with default ML methods)
 #'
 #' # Estimation
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", post_period = 2020,
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2020,
 #'             inf_type = "classic", nboot = 10, CATE = TRUE)
 #'
 #' # ATE & CATE
@@ -120,7 +124,7 @@
 #' c(fit$ate.lower, fit$ate.upper)
 #'
 
-MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
+MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -131,15 +135,15 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
   if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
   if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
-  if(!any(class(post_period) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("post_period must be integer, numeric or Date")
-  if(is.null(timevar)){if(!post_period %in% data[, "Time"]) stop ("post_period must be contained in the 'Time' column")}
-  if(!is.null(timevar)){if(!post_period %in% data[, timevar]) stop ("post_period must be contained in timevar")}
+  if(!any(class(int_date) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("int_date must be integer, numeric or Date")
+  if(is.null(timevar)){if(!int_date %in% data[, "Time"]) stop ("int_date must be contained in the 'Time' column")}
+  if(!is.null(timevar)){if(!int_date %in% data[, timevar]) stop ("int_date must be contained in timevar")}
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-
+  # browser()
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
@@ -156,7 +160,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   ### Panel cross-validation
   if(is.null(PCV)){
 
-    best <- PanelCrossValidation(data = data_panel, post_period = post_period, pcv_block = pcv_block, metric = metric)
+    best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)
 
   } else {
 
@@ -166,7 +170,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
 
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  ind <- which(data_panel[, "Time"] < post_period)
+  ind <- which(data_panel[, "Time"] < int_date)
 
   set.seed(1)
 
@@ -183,7 +187,8 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, post_period, inf_typ
   pred <- caret::predict.train(fit, newdata = data_panel[-ind, ])
 
   ### ATE
-  ate <- mean(obs - pred)
+  ate <- rowMeans(matrix(nrow = length(unique(data_panel[-ind, "Time"])), obs - pred))
+  # ate <- mean(obs - pred)
 
   ### Inference
   invisible(capture.output(

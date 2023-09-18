@@ -6,7 +6,7 @@
 \usage{
 PanelCrossValidation(
   data,
-  post_period,
+  int_date,
   pcv_block = 1,
   metric = "RMSE",
   trControl = NULL,
@@ -16,7 +16,7 @@ PanelCrossValidation(
 \arguments{
 \item{data}{A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.}
 
-\item{post_period}{The post-intervention period where the causal effect should be computed.}
+\item{int_date}{The date of the intervention, treatment, policy introduction or shock.}
 
 \item{pcv_block}{Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.}
 
@@ -36,10 +36,10 @@ A list of class \code{train} with the best-performing ML method.
 This function implements the panel cross validation technique as described in
 Cerqua A., Letta M. & Menchetti F., (2023) <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>.
 It works as a rolling window training and testing procedure where the ML methods are trained recursively on the
-the observations in the first $t$ time periods and tested in the prediction of the next $t+1$ period.
+the observations in the first $t$ time periods and tested in the prediction of the next periods.
 }
 \details{
-To speed up #' computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
+To speed up computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
 (the default) indicates to use the observations in the first time period as the first training sample and to test on the next period.
 Then, the second training sample will be formed by the observations on the first two time periods and validation will be performed
 on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time. For example,
@@ -68,7 +68,7 @@ testx <- indices$indexOut[3:4]
 ctrl <- trainControl(index = trainx, indexOut = testx)
 
 # Customized panel cross validation
-pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl)
+pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl)
 
 ### Example 2. Changing ML methods
 
@@ -81,11 +81,11 @@ linreg <- list(method = "lm",
               tuneGrid = expand.grid(
                 intercept = seq(0, 10, by = 0.5)))
 
-pcv <- PanelCrossValidation(data = newdata, post_period = 2020,
+pcv <- PanelCrossValidation(data = newdata, int_date = 2020,
                             ML_methods = list(enet, linreg))
 
 ### Example 3. Changing ML methods and trControl and estimating ATE
-pcv <- PanelCrossValidation(data = newdata, post_period = 2020, trControl = ctrl,
+pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl,
                             ML_methods = list(enet, linreg))
-causal <- MLCM(data = newdata, post_period = 2020, inf_type = "block", PCV = pcv)
+causal <- MLCM(data = newdata, int_date = 2020, inf_type = "block", PCV = pcv)
 }
