@@ -43,7 +43,6 @@
 
 boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
-  browser()
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
@@ -62,8 +61,8 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
   if(type %in% c("block", "bc block")){
 
     ids <- unique(data$ID)
-    ii <- t(sapply(1:nboot, function(boot){set.seed(boot); ind1 <- sample(ids, size = length(ids), replace = T);
-                                           unlist(sapply(ind1, function(x)(intersect(which(data[, "ID"] %in% x), ind)), simplify = F))}))
+    ii <- t(sapply(1:nboot, function(boot){set.seed(boot); ind1 <- sample(ids, size = length(ids), replace = TRUE);
+                                           unlist(sapply(ind1, function(x)(intersect(which(data[, "ID"] %in% x), ind)), simplify = FALSE))}))
   }
 
   ### Step 2. Bootstrapping (estimating the causal effect on the units resampled in each bootstrap iteration)
@@ -85,7 +84,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
   postimes <- data[-ind, "Time"]
   ate_boot <- data.frame(postimes, ate_boot)
-  mean_ate_boot <- mapply(unique(postimes), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = T)
+  mean_ate_boot <- mapply(unique(postimes), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = TRUE)
   colnames(mean_ate_boot) <- unique(postimes)
   conf.ate <- apply(mean_ate_boot, 2, quantile, probs = c(alpha/2, 1 - alpha/2))
   var.ate <- apply(mean_ate_boot, 2, var)
@@ -113,7 +112,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, ind))-1)))
     Blist <- mapply(x = unique(postimes), y = ate, FUN = function(x,y){
              list(Y = counts, tt = colMeans(ate_boot[ate_boot$postimes == x, -1]), t0 = y)}, SIMPLIFY = FALSE)
-    out2 <- mapply(B = Blist, FUN = bcajack2, MoreArgs = list(alpha = alpha), SIMPLIFY = F)
+    out2 <- mapply(B = Blist, FUN = bcajack2, MoreArgs = list(alpha = alpha), SIMPLIFY = FALSE)
     conf.ate <- sapply(out2, FUN = function(x)(x$lims[c(1,3), "bca"]))
     # Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate) # old
     # out2 <- bcajack2(B = Blist, alpha = alpha) # old
@@ -155,7 +154,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 #' @importFrom stats sd
 
 boot_cate <- function(effect, cate, nboot, alpha){
-  browser()
+
   ### Param checks
   if(!is.numeric(effect)) stop("effect must be a numeric vector")
   if(class(cate) != "rpart") stop ("cate must be an 'rpart' object")
