@@ -42,7 +42,8 @@
 
 
 boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
-  # browser()
+
+  browser()
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
@@ -82,9 +83,13 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
     obs - pred
   })
 
-  ate_boot <- data.frame(data[-ind, "Time"], ate_boot)
-  mean_ate_boot <- mapply(unique(data[-ind, "Time"]), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = T)
+  postimes <- data[-ind, "Time"]
+  ate_boot <- data.frame(postimes, ate_boot)
+  mean_ate_boot <- mapply(unique(postimes), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = T)
+  colnames(mean_ate_boot) <- unique(postimes)
   conf.ate <- apply(mean_ate_boot, 2, quantile, probs = c(alpha/2, 1 - alpha/2))
+  var.ate <- apply(mean_ate_boot, 2, var)
+
   # mean_ate_boot <- colMeans(ate_boot) # old
   # conf.ate <- quantile(mean_ate_boot, probs = c(alpha/2, 1 - alpha/2)) # old
 
@@ -114,7 +119,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
 
   # Returning results
-  return(list(type = type, ate.boot = ate_boot, conf.ate = conf.ate, var.ate = apply(mean_ate_boot, 2, var), ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ]))
+  return(list(type = type, ate.boot = ate_boot, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ]))
 }
 
 #' Bootstrap inference for CATE

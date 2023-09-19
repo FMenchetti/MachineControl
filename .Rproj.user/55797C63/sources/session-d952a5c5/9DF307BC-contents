@@ -43,6 +43,7 @@
 
 boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
+  browser()
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
@@ -82,22 +83,32 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
     obs - pred
   })
 
-  mean_ate_boot <- colMeans(ate_boot)
-  conf.ate <- quantile(mean_ate_boot, probs = c(alpha/2, 1 - alpha/2))
+  postimes <- data[-ind, "Time"]
+  ate_boot <- data.frame(postimes, ate_boot)
+  mean_ate_boot <- mapply(unique(postimes), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = T)
+  colnames(mean_ate_boot) <- unique(postimes)
+  conf.ate <- apply(mean_ate_boot, 2, quantile, probs = c(alpha/2, 1 - alpha/2))
+  var.ate <- apply(mean_ate_boot, 2, var)
+
+  # mean_ate_boot <- colMeans(ate_boot) # old
+  # conf.ate <- quantile(mean_ate_boot, probs = c(alpha/2, 1 - alpha/2)) # old
 
   ### Step 3. Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block" or "bca")
 
   if(type %in% c("bc classic", "bc block")){
 
-    # Bias correction
-    z0 <- qnorm(sum(mean_ate_boot < ate)/nboot)
+    # Bias correction (UPDATE HERE: APPLY)
+    z0 <- mapply(x = apply(mean_ate_boot, 2, as.list), y = ate, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
+    # z0 <- qnorm(sum(mean_ate_boot < ate)/nboot) # old
     lower <- pnorm(2*z0 + qnorm(alpha/2))
     upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
-    conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper))
+    conf.ate <- mapply(x = as.list(lower), y = as.list(upper), z = apply(mean_ate_boot, 2, as.list),
+                       FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    # conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper)) # old
 
   }
 
-  if(type == "bca"){
+  if(type == "bca"){ # (UPDATE HERE: APPLY)
 
     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, ind))-1)))
     Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate)
@@ -108,7 +119,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
 
   # Returning results
-  return(list(type = type, ate.boot = ate_boot, conf.ate = conf.ate, var.ate = var(mean_ate_boot), ate.lower = conf.ate[1], ate.upper = conf.ate[2]))
+  return(list(type = type, ate.boot = ate_boot, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ]))
 }
 
 #' Bootstrap inference for CATE

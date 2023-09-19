@@ -143,7 +143,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-  # browser()
+  browser()
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
@@ -187,7 +187,9 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   pred <- caret::predict.train(fit, newdata = data_panel[-ind, ])
 
   ### ATE
-  ate <- rowMeans(matrix(nrow = length(unique(data_panel[-ind, "Time"])), obs - pred))
+  postimes <- data_panel[-ind, "Time"]
+  ate <- rowMeans(matrix(nrow = length(unique(postimes)), obs - pred))
+  names(ate) <- unique(postimes)
   # ate <- mean(obs - pred)
 
   ### Inference
@@ -200,9 +202,13 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   ### CATE
   if(CATE){
 
-    data_cate <- data.frame(effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
-    cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs))
-    cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot, alpha = alpha)
+    data_cate <- data.frame(Time = postimes, effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
+    cate <- lapply(unique(postimes), FUN = function(x){
+            rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(obs))})
+    cate.inf <- lapply(cate, FUN = function(x)(boot_cate(effect = obs - pred, cate = x, nboot = nboot, alpha = alpha)))
+    names(cate.inf) <- unique(postimes)
+    # cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs)) #old
+    # cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot, alpha = alpha) # old
 
   } else {
 

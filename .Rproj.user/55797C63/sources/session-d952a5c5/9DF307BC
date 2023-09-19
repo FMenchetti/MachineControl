@@ -1,26 +1,26 @@
 {
-    "id": "35D5C48D",
-    "path": "~/GitHub/MLCM/DESCRIPTION",
-    "project_path": "DESCRIPTION",
-    "type": "dcf",
-    "hash": "2974761388",
+    "id": "9DF307BC",
+    "path": "~/GitHub/MachineControl/R/bootstrap.R",
+    "project_path": "R/bootstrap.R",
+    "type": "r_source",
+    "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1690286189518.0,
+    "created": 1690205783282.0,
     "source_on_save": false,
     "relative_order": 4,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "27,17",
-        "scrollLine": "4"
+        "cursorPosition": "88,45",
+        "scrollLine": "82"
     },
     "folds": "",
-    "lastKnownWriteTime": 1690379834,
+    "lastKnownWriteTime": 1695113861,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1690379834042,
+    "last_content_update": 1695113861212,
     "read_only": false,
     "read_only_alternatives": []
 }
