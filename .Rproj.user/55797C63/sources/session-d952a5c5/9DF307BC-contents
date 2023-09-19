@@ -97,7 +97,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
   if(type %in% c("bc classic", "bc block")){
 
-    # Bias correction (UPDATE HERE: APPLY)
+    # Bias correction
     z0 <- mapply(x = apply(mean_ate_boot, 2, as.list), y = ate, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
     # z0 <- qnorm(sum(mean_ate_boot < ate)/nboot) # old
     lower <- pnorm(2*z0 + qnorm(alpha/2))
@@ -108,12 +108,16 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 
   }
 
-  if(type == "bca"){ # (UPDATE HERE: APPLY)
+  if(type == "bca"){
 
     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, ind))-1)))
-    Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate)
-    out2 <- bcajack2(B = Blist, alpha = alpha)
-    conf.ate <- out2$lims[c(1,3),"bca"]
+    Blist <- mapply(x = unique(postimes), y = ate, FUN = function(x,y){
+             list(Y = counts, tt = colMeans(ate_boot[ate_boot$postimes == x, -1]), t0 = y)}, SIMPLIFY = FALSE)
+    out2 <- mapply(B = Blist, FUN = bcajack2, MoreArgs = list(alpha = alpha), SIMPLIFY = F)
+    conf.ate <- sapply(out2, FUN = function(x)(x$lims[c(1,3), "bca"]))
+    # Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate) # old
+    # out2 <- bcajack2(B = Blist, alpha = alpha) # old
+    # conf.ate <- out2$lims[c(1,3),"bca"] # old
 
   }
 
@@ -151,7 +155,7 @@ boot_ate <- function(data, ind, bestt, type, nboot, alpha, ate = NULL){
 #' @importFrom stats sd
 
 boot_cate <- function(effect, cate, nboot, alpha){
-
+  browser()
   ### Param checks
   if(!is.numeric(effect)) stop("effect must be a numeric vector")
   if(class(cate) != "rpart") stop ("cate must be an 'rpart' object")

@@ -3,7 +3,7 @@
     "path": "~/GitHub/MachineControl/R/bootstrap.R",
     "project_path": "R/bootstrap.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "547399918",
     "contents": "",
     "dirty": false,
     "created": 1690205783282.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "88,45",
-        "scrollLine": "82"
+        "cursorPosition": "157,10",
+        "scrollLine": "139"
     },
     "folds": "",
-    "lastKnownWriteTime": 1695113861,
+    "lastKnownWriteTime": 1695119302,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1695113861212,
+    "last_content_update": 1695119302472,
     "read_only": false,
     "read_only_alternatives": []
 }
