@@ -57,8 +57,7 @@ A list with the following components:
   \item \code{ate}: the estimated ATE
   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
   by the user in 'inf_type'
-  \item \code{ate.lower}: lower bound of a 95% bootstrap confidence interval
-  \item \code{ate.upper}: upper bound of a 95% bootstrap confidence interval
+  \item \code{conf.ate}: a (1-\code{alpha})% bootstrap confidence interval
   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
   estimated by bootstrap
@@ -124,7 +123,7 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2020,
 
 # ATE & CATE
 fit$ate
-plot(fit$cate) ; text(fit$cate)
+# plot(fit$cate) ; text(fit$cate)
 
 # Bootstrap confidence interval
 c(fit$ate.lower, fit$ate.upper)

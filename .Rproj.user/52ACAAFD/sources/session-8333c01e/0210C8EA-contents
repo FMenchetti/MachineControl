@@ -85,8 +85,7 @@
 #'   \item \code{ate}: the estimated ATE
 #'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
 #'   by the user in 'inf_type'
-#'   \item \code{ate.lower}: lower bound of a 95% bootstrap confidence interval
-#'   \item \code{ate.upper}: upper bound of a 95% bootstrap confidence interval
+#'   \item \code{conf.ate}: a (1-\code{alpha})% bootstrap confidence interval
 #'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
 #'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
 #'   estimated by bootstrap
@@ -118,7 +117,7 @@
 #'
 #' # ATE & CATE
 #' fit$ate
-#' plot(fit$cate) ; text(fit$cate)
+#' # plot(fit$cate) ; text(fit$cate)
 #'
 #' # Bootstrap confidence interval
 #' c(fit$ate.lower, fit$ate.upper)
@@ -143,7 +142,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-  # browser()
+
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
@@ -168,12 +167,9 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
 
   }
 
-
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
   ind <- which(data_panel[, "Time"] < int_date)
-
   set.seed(1)
-
   invisible(capture.output(
     fit <- train(Y ~ .,
                  data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
@@ -183,26 +179,36 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
                  tuneGrid = best$bestTune)
   ))
 
-  obs <- data_panel[-ind, "Y"]
-  pred <- caret::predict.train(fit, newdata = data_panel[-ind, ])
+  ### ATE estimation & inference
+  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, ran.err = FALSE)
+  ate <- effects$ate
 
-  ### ATE
-  ate <- rowMeans(matrix(nrow = length(unique(data_panel[-ind, "Time"])), obs - pred))
-  # ate <- mean(obs - pred)
-
-  ### Inference
   invisible(capture.output(
 
-    boot_inf <- boot_ate(data = data_panel, ind = ind, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha)
+    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha, metric = metric)
 
   ))
 
-  ### CATE
+  ### Individual effects
+  ind_effects <- effects$ind_effects
+
+  ### CATE estimation & inference
   if(CATE){
 
-    data_cate <- data.frame(effect = obs - pred, data_panel[-ind, !names(data_panel) %in% c("Y","Time","ID")])
-    cate <- rpart(effect ~ ., method="anova", data = data_cate, cp = 0, minbucket = 0.05*length(obs))
-    cate.inf <- boot_cate(effect = obs - pred, cate = cate, nboot = nboot, alpha = alpha)
+    # Selecting post-intervention times
+    post <- which(data_panel$Time >= int_date)
+    postimes <- data_panel$Time[post]
+
+    # Matrix containing the estimated individual effects and post-intervention covariates
+    data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects)), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
+
+    # CATE estimation & inference
+    cate <- lapply(unique(postimes), FUN = function(x){
+      rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data_panel$ID)))})
+    mat <- data.frame(postimes, c(t(ind_effects)))
+    cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
+      boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
+    names(cate.inf) <- unique(postimes)
 
   } else {
 
@@ -211,12 +217,9 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   }
 
 
-  #options(scipen=999)
-  #prp(model.rpart, fallen.leaves = FALSE, box.col="lightgray", type = 3, branch=1, branch.lty= 1,   main="Data-driven CATEs")
-
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, ate.lower = boot_inf$ate.lower, ate.upper = boot_inf$ate.upper, cate = cate, cate.inf = cate.inf))
-  # return(list(best_method = best, fit = fit, ate = ate, ate.lower = conf.ate[1], ate.upper = conf.ate[2]), conf.individual = conf.individual)
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, cate = cate, cate.inf = cate.inf))
+
 }
 
 #' Structuring the panel dataset
@@ -265,4 +268,76 @@ as.PanelMLCM <- function(y, x, timevar, id){
   # Returning results
   class(panel) <- c("data.frame", "PanelMLCM")
   return(panel)
+}
+
+#' ATE estimation
+#'
+#' Internal function, used within the MLCM and bootstrap routines for the estimation of ATE
+#'
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date The date of the intervention, treatment, policy introduction or shock.
+#' @param best Object of class \code{train}, the best-performing ML method as selected
+#'             by panel cross validation.
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#' @param ran.err Logical, whether to include a random error to the predicted/counterfactual
+#'                post-intervention observations. It is set to \code{FALSE} when the objective is ATE
+#'                estimation. It is set to \code{TRUE} when the objective is estimating bootstrap standard errors.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#' \item ind_effects: matrix of estimated unit-level causal effects
+#' \item ate: vector of estimated ATEs for each post-intervention period
+#' }
+#'
+#' @noRd
+#' @import caret
+#' @importFrom stats rnorm
+#' @importFrom stats sd
+
+ate_est <- function(data, int_date, best, metric, ran.err){
+
+  ### Step 1. Settings (empty matrix)
+  postimes <- data[which(data[, "Time"] >= int_date), "Time"]
+  ind_effects <- matrix(NA, nrow = nrow(data[data$Time == int_date, ]) , ncol = length(unique(postimes)))
+  colnames(ind_effects) <- unique(postimes)
+
+  ### Step 2. Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions
+  ###         The following loops over the post-intervention periods and implements the recursive procedure
+  ###         described in the paper
+  for(i in 1:length(unique(postimes))){
+
+    pre <- which(data[, "Time"] < postimes[i])
+    post <- which(data[, "Time"] == postimes[i])
+    invisible(capture.output(
+      fit <- train(Y ~ .,
+                   data = data[pre, !(names(data) %in% c("ID", "Time"))],
+                   method = best$method,
+                   metric = metric,
+                   trControl = trainControl(method="none"),
+                   tuneGrid = best$bestTune)
+    ))
+
+    ### Step 3. ATE estimation, if the option 'ran.err' is active, a random error is added to the prediction
+    ###         This is only recommended during bootstrap, as it affects ATE's variance
+    if(ran.err){
+
+      eps <- data[pre, "Y"] - predict.train(fit)
+      error <- rnorm(n = nrow(data[post,]), mean = mean(eps), sd = sd(eps))
+      pred <- predict.train(fit, newdata = data[post, ]) + error
+
+    } else {
+
+      pred <- predict.train(fit, newdata = data[post, ])
+      error <- 0
+
+    }
+
+    obs <- data[post, "Y"]
+    ind_effects[,i] <- obs - pred
+    # data[post, "Y"] <- data[(post+1), "Ylag1"] <- pred - error
+  }
+
+  ### Step 3. Returning the matrix of individual effects and the ATE
+  return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
 }

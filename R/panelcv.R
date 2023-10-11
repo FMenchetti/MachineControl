@@ -113,9 +113,6 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   end <- sum(unique(data[, "Time"]) < (int_date - 1) )
   trainx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[1:x]))
   testx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[[x+1]]))
-  # trainx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[1:x])) # old
-  # testx <- lapply(pcv_block:(Tt-2), FUN = function(x) unlist(indices$indexOut[[x+1]])) # old
-
 
   ### STEP 2. Set control function by specifying the training and testing folds that caret will use
   ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)
@@ -182,12 +179,12 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   } else {
 
-   m_list <- lapply(ML_methods, FUN = function(x){train(Y ~.,
-                                                  data = data[, !(names(data) %in% c("ID", "Time"))],
-                                                  method = x$method,
-                                                  metric = metric,
-                                                  trControl = ctrl,
-                                                  tuneGrid = x$tuneGrid)})
+    m_list <- lapply(ML_methods, FUN = function(x){train(Y ~.,
+                                                         data = data[, !(names(data) %in% c("ID", "Time"))],
+                                                         method = x$method,
+                                                         metric = metric,
+                                                         trControl = ctrl,
+                                                         tuneGrid = x$tuneGrid)})
 
   }
 
