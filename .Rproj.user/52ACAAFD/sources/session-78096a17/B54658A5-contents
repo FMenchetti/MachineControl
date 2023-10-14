@@ -44,7 +44,7 @@
 #' @importFrom stats sd
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, ate = NULL){
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
@@ -65,7 +65,7 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, ate = NU
     ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
 
     # Step 2. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE)$ate})
+    ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, y.lag = y.lag, ran.err = TRUE)$ate})
 
 
   }
@@ -92,7 +92,7 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, ate = NU
     }, SIMPLIFY = FALSE)
 
     # Step 3. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE)$ate})
+    ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, y.lag = y.lag, ran.err = TRUE)$ate})
 
 
   }
@@ -150,6 +150,7 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, ate = NU
 #' @return A matrix containing the following information: estimated CATE within
 #' each node, estimated variance and confidence interval (upper and lower bound)
 #' estimated by bootstrap. Each column corresponds to a terminal node of the tree.
+#' @noRd
 
 boot_cate <- function(effect, cate, nboot, alpha){
 

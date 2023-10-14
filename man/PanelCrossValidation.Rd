@@ -59,18 +59,18 @@ illustration.
 
 # Organizing the dataset
 newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))])
+                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))], y.lag = 1)
 
 # Using the first two years for training and the last two years for testing
-indices <- CAST::CreateSpacetimeFolds(newdata, timevar = "Time", k = 5)
+indices <- CAST::CreateSpacetimeFolds(newdata, timevar = "Time", k = length(unique(newdata$Time)))
 trainx <- indices$indexOut[1:2]
 testx <- indices$indexOut[3:4]
 ctrl <- trainControl(index = trainx, indexOut = testx)
 
 # Customized panel cross validation
-pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl)
+pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 
-### Example 2. Changing ML methods
+### Example 2. Changing ML methods and estimating ATE
 
 enet <- list(method = "enet",
             tuneGrid = expand.grid(
@@ -81,11 +81,11 @@ linreg <- list(method = "lm",
               tuneGrid = expand.grid(
                 intercept = seq(0, 10, by = 0.5)))
 
-pcv <- PanelCrossValidation(data = newdata, int_date = 2020,
+pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg))
 
-### Example 3. Changing ML methods and trControl and estimating ATE
-pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl,
-                            ML_methods = list(enet, linreg))
-causal <- MLCM(data = newdata, int_date = 2020, inf_type = "block", PCV = pcv)
+causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv, nboot = 10, CATE = FALSE)
+
+causal$ate
+causal$conf.ate
 }

@@ -6,11 +6,12 @@
 \usage{
 MLCM(
   data,
+  int_date,
+  inf_type,
   y = NULL,
   timevar = NULL,
   id = NULL,
-  int_date,
-  inf_type,
+  y.lag = 0,
   nboot = 1000,
   pcv_block = 1,
   metric = "RMSE",
@@ -23,16 +24,18 @@ MLCM(
 \item{data}{A panel dataset in long form, having one column for the time variable, one column for the units'
 unique IDs, one column for the outcome variable and one or more columns for the covariates.}
 
+\item{int_date}{The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
+By default, this is the first period that the causal effect should be computed for. See Details.}
+
+\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
+
 \item{y}{Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.}
 
 \item{timevar}{Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.}
 
 \item{id}{Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.}
 
-\item{int_date}{The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-By default, this is the first period that the causal effect should be computed for. See Details.}
-
-\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
+\item{y.lag}{Optional, number of lags of the dependent variable to include in the model. Defaults to zero.}
 
 \item{nboot}{Number of bootstrap replications, defaults to 1000.}
 
@@ -118,14 +121,14 @@ underlying assumptions see the paper cited above.
 ### Example 1. Estimating ATE and CATE (with default ML methods)
 
 # Estimation
-fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2020,
-            inf_type = "classic", nboot = 10, CATE = TRUE)
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
+            inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)
 
 # ATE & CATE
 fit$ate
 # plot(fit$cate) ; text(fit$cate)
 
 # Bootstrap confidence interval
-c(fit$ate.lower, fit$ate.upper)
+fit$conf.ate
 
 }

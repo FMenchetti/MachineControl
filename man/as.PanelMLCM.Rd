@@ -4,7 +4,7 @@
 \alias{as.PanelMLCM}
 \title{Structuring the panel dataset}
 \usage{
-as.PanelMLCM(y, x, timevar, id)
+as.PanelMLCM(y, x, timevar, id, y.lag = 0)
 }
 \arguments{
 \item{y}{Numeric, the outcome variable.}
@@ -15,6 +15,8 @@ as.PanelMLCM(y, x, timevar, id)
 a date object}
 
 \item{id}{Numeric, the column containing the ID's.}
+
+\item{y.lag}{Optional, number of lags of the dependent variable to include in the model.}
 }
 \value{
 An object of class 'data.frame' and 'PanelMLCM'.
@@ -36,7 +38,7 @@ head(data)
 
 # Run as.PanelMLCM
 newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))])
+                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))], y.lag = 2)
 
 # Results
 head(newdata)

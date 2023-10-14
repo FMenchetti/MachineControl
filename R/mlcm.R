@@ -24,12 +24,13 @@
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
 #'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
-#' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
-#' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
-#' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
 #' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
 #'                    By default, this is the first period that the causal effect should be computed for. See Details.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
+#' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
+#' @param y.lag       Optional, number of lags of the dependent variable to include in the model. Defaults to zero.
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
@@ -112,18 +113,18 @@
 #' ### Example 1. Estimating ATE and CATE (with default ML methods)
 #'
 #' # Estimation
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2020,
-#'             inf_type = "classic", nboot = 10, CATE = TRUE)
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
+#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)
 #'
 #' # ATE & CATE
 #' fit$ate
 #' # plot(fit$cate) ; text(fit$cate)
 #'
 #' # Bootstrap confidence interval
-#' c(fit$ate.lower, fit$ate.upper)
+#' fit$conf.ate
 #'
 
-MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
+MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -131,6 +132,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   if(!(is.null(y) | class(y) == "character")) stop("y must be a character")
   if(!(is.null(timevar) | class(timevar) == "character")) stop("timevar must be a character")
   if(!(is.null(id) | class(id) == "character")) stop("id must be a character")
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive") # should be integer
   if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
   if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
   if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
@@ -151,7 +153,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   } else {
 
     data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                               x = data[, !(names(data) %in% c(y, id, timevar))])
+                               x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag)
 
   }
 
@@ -180,12 +182,12 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
   ))
 
   ### ATE estimation & inference
-  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, ran.err = FALSE)
+  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, y.lag = y.lag, ran.err = FALSE)
   ate <- effects$ate
 
   invisible(capture.output(
 
-    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha, metric = metric)
+    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha, metric = metric, y.lag = y.lag)
 
   ))
 
@@ -233,6 +235,7 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
 #' @param timevar  The column containing the time variable. It can be numeric, integer or
 #'                 a date object
 #' @param id Numeric, the column containing the ID's.
+#' @param y.lag Optional, number of lags of the dependent variable to include in the model.
 #'
 #' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
 #' users full flexibility in the choice of the ML algorithms and during the panel cross validation.
@@ -247,12 +250,12 @@ MLCM <- function(data, y = NULL, timevar = NULL, id = NULL, int_date, inf_type, 
 #'
 #' # Run as.PanelMLCM
 #' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))])
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))], y.lag = 2)
 #'
 #' # Results
 #' head(newdata)
 
-as.PanelMLCM <- function(y, x, timevar, id){
+as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
 
   # Parameter checks
   if(!(is.numeric(y) & length(y)>1)) stop("y must be a numeric vector of length greater than 1")
@@ -261,9 +264,26 @@ as.PanelMLCM <- function(y, x, timevar, id){
   if(!any(class(timevar) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "integer", "numeric")) | length(timevar) != length(y)) stop("timevar must be a numeric vector or a 'Date' object of the same length as y")
   if(!(is.numeric(id) & length(id) == length(y))) stop("id must be a numeric vector of the same length as y")
   if(length(unique(id))*length(unique(timevar)) != length(y)) warning("The panel is unbalanced")
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")
+  if(length(unique(timevar)) <= y.lag) stop("The number of selected lags is greater or equal to the number of times, resulting in an empty dataset")
 
-  # Structuring the panel dataset
+  ### STEP 1. Structuring the panel dataset
   panel <- data.frame(Time = timevar, ID = id, Y = y, x)
+
+  ### STEP 2. Are there any past lags of 'y' to include?
+  if(!is.null(y.lag)){
+
+    # Applying the internal '.true_lag' function to the Y variable of each unit in the panel
+    ids <- unique(id)
+    ylags <- sapply(1:y.lag, function(l){unlist(lapply(ids, function(x)(.true_lag(y[id == x], l))))})
+    colnames(ylags) <- paste0("Ylag", 1:y.lag)
+    panel <- data.frame(panel, ylags)
+
+    # Removing initial NAs from the panel
+    ind <- which(is.na(panel[, paste0("Ylag", y.lag)]))
+    panel <- panel[-ind, ]
+
+  }
 
   # Returning results
   class(panel) <- c("data.frame", "PanelMLCM")
@@ -295,7 +315,7 @@ as.PanelMLCM <- function(y, x, timevar, id){
 #' @importFrom stats rnorm
 #' @importFrom stats sd
 
-ate_est <- function(data, int_date, best, metric, ran.err){
+ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 
   ### Step 1. Settings (empty matrix)
   postimes <- data[which(data[, "Time"] >= int_date), "Time"]
@@ -318,8 +338,8 @@ ate_est <- function(data, int_date, best, metric, ran.err){
                    tuneGrid = best$bestTune)
     ))
 
-    ### Step 3. ATE estimation, if the option 'ran.err' is active, a random error is added to the prediction
-    ###         This is only recommended during bootstrap, as it affects ATE's variance
+    ### Step 3. Counterfactual prediction, if the option 'ran.err' is active, a random error is added
+    ###         to the prediction (recommended only during bootstrap to get reliable estimates of ATEs variance)
     if(ran.err){
 
       eps <- data[pre, "Y"] - predict.train(fit)
@@ -333,11 +353,54 @@ ate_est <- function(data, int_date, best, metric, ran.err){
 
     }
 
+    ### STEP 4. ATE estimation (observed - predicted). Note that when there is more than 1 post-intervention
+    ###         period and y.lag > 1, the MLCM routine will use the observed impacted series, disrupting all estimates.
+    ###         e.g., int_date = 2020, 2 post-int periods, 2 lags: to predict Y_2020 MLCM will use Y_2018 (pre-int) and Y_2019 (pre-int),
+    ###         but to predict Y_2021 MLCM will use Y_2019 (pre-int) and Y_2020 (post-int), which is not ok. With this last step,
+    ###         we impute post-intervention Y's with their predicted counterfactual
     obs <- data[post, "Y"]
     ind_effects[,i] <- obs - pred
-    # data[post, "Y"] <- data[(post+1), "Ylag1"] <- pred - error
+
+    if(length(unique(postimes)) > 1 & y.lag > 0 & i < length(unique(postimes))){
+
+      # Substituting counterfactual Y (contemporaneous)
+      data[post, "Y"] <- pred - error
+      # Substituting counterfactual Y in future lags
+      maxl <- max(1, y.lag-i+1)
+
+      for(l  in 1:maxl){
+
+        data[(post+l), paste0("Ylag",l)] <- pred - error
+        data
+
+      }
+    }
   }
 
   ### Step 3. Returning the matrix of individual effects and the ATE
   return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
+}
+
+#' Generation of lagged variables
+#'
+#' Internal function, used to generate lags of the dependent variable.
+#'  This function shifts \code{x} backward of the given number of \code{lag}.
+#' If \code{lag = 1} (the default), the function shifts the variable of 1 step.
+#' For example, if \code{x[t]} is a time series, \code{lag = 1} generates \code{x[t-1]};
+#' \code{lag = 2} generates \code{x[t-2]} and so on.
+#'
+#' @param x Numeric, variable to lag
+#' @param lag Numeric, lag of \code{x} to generate, defaulting to 1.See Details.
+#'
+#' @return
+#' A vector of the lagged variable having the same length as \code{x] (note that
+#' there will be as many initial NAs as the number of \code{lag}.)
+#'
+#' @noRd
+
+.true_lag <- function(x, lag = 1){
+
+  x_lag <- c(rep(NA, times = lag), head(x, n = length(x)-lag))
+  return(x_lag)
+
 }

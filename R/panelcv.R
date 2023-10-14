@@ -64,18 +64,18 @@
 #'
 #' # Organizing the dataset
 #' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))])
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))], y.lag = 1)
 #'
 #' # Using the first two years for training and the last two years for testing
-#' indices <- CAST::CreateSpacetimeFolds(newdata, timevar = "Time", k = 5)
+#' indices <- CAST::CreateSpacetimeFolds(newdata, timevar = "Time", k = length(unique(newdata$Time)))
 #' trainx <- indices$indexOut[1:2]
 #' testx <- indices$indexOut[3:4]
 #' ctrl <- trainControl(index = trainx, indexOut = testx)
 #'
 #' # Customized panel cross validation
-#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl)
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 #'
-#' ### Example 2. Changing ML methods
+#' ### Example 2. Changing ML methods and estimating ATE
 #'
 #' enet <- list(method = "enet",
 #'             tuneGrid = expand.grid(
@@ -86,20 +86,22 @@
 #'               tuneGrid = expand.grid(
 #'                 intercept = seq(0, 10, by = 0.5)))
 #'
-#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020,
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
 #'                             ML_methods = list(enet, linreg))
 #'
-#' ### Example 3. Changing ML methods and trControl and estimating ATE
-#' pcv <- PanelCrossValidation(data = newdata, int_date = 2020, trControl = ctrl,
-#'                             ML_methods = list(enet, linreg))
-#' causal <- MLCM(data = newdata, int_date = 2020, inf_type = "block", PCV = pcv)
+#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
+#'                nboot = 10, CATE = FALSE)
+#'
+#' causal$ate
+#' causal$conf.ate
 
 PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(!(int_date %in% data[, "Time"])) stop("int_date must be contained in timevar")
-  if(length(unique(data[, "Time"])) - 2 - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
+  if(sum(unique(data[, "Time"]) < int_date) - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
+  #if(length(unique(data[, "Time"])) - 2 - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
   if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(is.list(ML_methods)){if(any(sapply(ML_methods, FUN = length) != 2)) stop("'ML_methods' must be a list of methods, each of length 2")}
@@ -108,7 +110,6 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
   Tt <- length(unique(data[, "Time"]))
-  int_date <- int_date # questo è superfluo?
   indices <- CreateSpacetimeFolds(data, timevar = "Time", k = Tt)
   end <- sum(unique(data[, "Time"]) < (int_date - 1) )
   trainx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[1:x]))
