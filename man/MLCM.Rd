@@ -122,7 +122,7 @@ underlying assumptions see the paper cited above.
 
 # Estimation
 fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-            inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)
+            inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)#'
 
 # ATE & CATE
 fit$ate
@@ -130,5 +130,9 @@ fit$ate
 
 # Bootstrap confidence interval
 fit$conf.ate
+
+# Individual effects
+head(fit$ind.effects)
+head(fit$conf.individual)
 
 }

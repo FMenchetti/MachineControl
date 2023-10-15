@@ -20,7 +20,7 @@
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
-#' @param y.lag       Optional, number of lags of the dependent variable to include in the model.
+#' @param y.lag       Optional, number of lags of the dependent variable to include in the model. Defaults to zero.
 #' @param nboot       Number of bootstrap replications, defaults to 1000.
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
@@ -30,7 +30,7 @@
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
 
-MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = NULL, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
+MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -38,7 +38,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   if(!(is.null(y) | class(y) == "character")) stop("y must be a character")
   if(!(is.null(timevar) | class(timevar) == "character")) stop("timevar must be a character")
   if(!(is.null(id) | class(id) == "character")) stop("id must be a character")
-  if(!(is.null(y.lag) | class(y.lag) == "numeric")) stop("y.lag must be numeric") # should be integer
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")  # should be integer
   if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
   if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
   if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
@@ -76,29 +76,29 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   }
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  ind <- which(data_panel[, "Time"] < int_date)
-  set.seed(1)
-  invisible(capture.output(
-    fit <- train(Y ~ .,
-                 data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-                 method = best$method,
-                 metric = metric,
-                 trControl = trainControl(method="none"),
-                 tuneGrid = best$bestTune)
-  ))
+  # ind <- which(data_panel[, "Time"] < int_date)
+  # set.seed(1)
+  # invisible(capture.output(
+  #  fit <- train(Y ~ .,
+  #               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+  #               method = best$method,
+  #               metric = metric,
+  #               trControl = trainControl(method="none"),
+  #               tuneGrid = best$bestTune)
+  # ))
 
-  ### ATE estimation & inference
-  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  ### ATE & individual effects estimation
+  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
   ate <- effects$ate
+  ind_effects <- effects$ind_effects
 
+  ### ATE & individual effects inference
   invisible(capture.output(
 
-    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha, metric = metric, y.lag = y.lag)
+    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+                         alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
 
   ))
-
-  ### Individual effects
-  ind_effects <- effects$ind_effects
 
   ### CATE estimation & inference
   if(CATE){
@@ -126,7 +126,8 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
 
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, cate = cate, cate.inf = cate.inf))
+  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate,
+              ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
 }
 
@@ -144,7 +145,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 #' @param y.lag Optional, number of lags of the dependent variable to include in the model.
 #'
 
-as.PanelMLCM <- function(y, x, timevar, id, y.lag = NULL){
+as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
 
   # Parameter checks
   if(!(is.numeric(y) & length(y)>1)) stop("y must be a numeric vector of length greater than 1")
@@ -153,6 +154,7 @@ as.PanelMLCM <- function(y, x, timevar, id, y.lag = NULL){
   if(!any(class(timevar) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "integer", "numeric")) | length(timevar) != length(y)) stop("timevar must be a numeric vector or a 'Date' object of the same length as y")
   if(!(is.numeric(id) & length(id) == length(y))) stop("id must be a numeric vector of the same length as y")
   if(length(unique(id))*length(unique(timevar)) != length(y)) warning("The panel is unbalanced")
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")
   if(length(unique(timevar)) <= y.lag) stop("The number of selected lags is greater or equal to the number of times, resulting in an empty dataset")
 
   ### STEP 1. Structuring the panel dataset
@@ -240,7 +242,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                             shrinkage = seq(0.01, 0.1, by = 0.01),
                             n.minobsinnode = c(10,20))
 
-    set.seed(1)
+    #set.seed(1)
     bo <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "gbm",
@@ -250,7 +252,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                 verbose = FALSE)
 
     # RANDOM FOREST
-    set.seed(1)
+    #set.seed(1)
     rf <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "rf",
@@ -329,7 +331,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' }
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL){
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL, ind.eff = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
@@ -351,11 +353,12 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
 
     # Step 2. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
-
+    # ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
 
   }
-
 
   ### Block bootstrap
   if(type %in% c("block", "bc block")){
@@ -371,43 +374,50 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
     }, simplify = FALSE)
 
-    ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
+    #ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
 
-      unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
+    #  unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
 
-    }, SIMPLIFY = FALSE)
+    #}, SIMPLIFY = FALSE)
 
     # Step 3. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
-
+    #ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    # ate_boot <- sapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
 
   }
 
-  ### Estimating ATE from the matrix of individual effects
-  # postimes <- data[-ind, "Time"]
-  # ate_boot <- data.frame(postimes, ate_boot)
-  # mean_ate_boot <- mapply(unique(postimes), FUN = function(x)(colMeans(ate_boot[ate_boot[,1] == x, -1])), SIMPLIFY = TRUE)
-  # colnames(mean_ate_boot) <- unique(postimes)
+  ### Confidence interval for ATE
   ate_boot <- matrix(ate_boot, nrow = length(unique(data[post, "Time"])))
   rownames(ate_boot) <- unique(data[post, "Time"])
   conf.ate <- apply(ate_boot, 1, quantile, probs = c(alpha/2, 1 - alpha/2))
   var.ate <- apply(ate_boot, 1, var)
 
-  # mean_ate_boot <- colMeans(ate_boot) # old
-  # conf.ate <- quantile(mean_ate_boot, probs = c(alpha/2, 1 - alpha/2)) # old
+  ### Confidence interval for the individual effects
+  conf.individual <- array(apply(ind_boot, 1, quantile, probs = c(0.025, 0.975)),
+                           dim = c(2,length(unique(data$ID)), length(unique(data[post, "Time"]))))
+  dimnames(conf.individual)[[3]] <- unique(data[post, "Time"])
 
-  ### Step 3. Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block" or "bca")
-
+  ### Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block")
   if(type %in% c("bc classic", "bc block")){
 
-    # Bias correction
+    # Bias correction for ATE
     z0 <- mapply(x = apply(ate_boot, 1, as.list), y = ate, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
-    # z0 <- qnorm(sum(mean_ate_boot < ate)/nboot) # old
     lower <- pnorm(2*z0 + qnorm(alpha/2))
     upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
     conf.ate <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ate_boot, 1, as.list),
                        FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
     # conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper)) # old
+
+    # Bias correction for the individual effects
+    z0 <- mapply(x = apply(ind_boot, 1, as.list), y = ind.eff, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
+    lower <- pnorm(2*z0 + qnorm(alpha/2))
+    upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
+    conf.individual <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ind_boot, 1, as.list),
+                       FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    conf.individual <- array(conf.individual, c(2, unique(data$ID), unique(data[post, "Time"])))
 
   }
 
@@ -426,7 +436,8 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
 
   # Returning results
-  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ]))
+  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual))
+  # return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ], conf.individual = conf.individual))
 }
 
 #' Bootstrap inference for CATE
@@ -517,8 +528,8 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
                    tuneGrid = best$bestTune)
     ))
 
-    ### Step 3. Counterfactual prediction, if the option 'ran.err' is active, a random error is added
-    ###         to the prediction (recommended only during bootstrap to get reliable estimates of ATEs variance)
+    ## Step 2.1. Counterfactual prediction, if the option 'ran.err' is active, a random error is added
+    ##           to the prediction (recommended only during bootstrap to get reliable estimates of ATEs variance)
     if(ran.err){
 
       eps <- data[pre, "Y"] - predict.train(fit)
@@ -532,11 +543,11 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 
     }
 
-    ### STEP 4. ATE estimation (observed - predicted). Note that when there is more than 1 post-intervention
-    ###         period and y.lag > 1, the MLCM routine will use the observed impacted series, disrupting all estimates.
-    ###         e.g., int_date = 2020, 2 post-int periods, 2 lags: to predict Y_2020 MLCM will use Y_2018 (pre-int) and Y_2019 (pre-int),
-    ###         but to predict Y_2021 MLCM will use Y_2019 (pre-int) and Y_2020 (post-int), which is not ok. With this last step,
-    ###         we impute post-intervention Y's with their predicted counterfactual
+    ## STEP 2.2. ATE estimation (observed - predicted). Note that when there is more than 1 post-intervention
+    ##           period and y.lag > 1, the MLCM routine will use the observed impacted series, disrupting all estimates.
+    ##           e.g., int_date = 2020, 2 post-int periods, 2 lags: to predict Y_2020 MLCM will use Y_2018 (pre-int) and Y_2019 (pre-int),
+    ##           but to predict Y_2021 MLCM will use Y_2019 (pre-int) and Y_2020 (post-int), which is not ok. With this last step,
+    ##           we impute post-intervention Y's with their predicted counterfactual
     obs <- data[post, "Y"]
     ind_effects[,i] <- obs - pred
 

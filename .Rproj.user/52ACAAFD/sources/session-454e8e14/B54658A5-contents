@@ -44,10 +44,11 @@
 #' @importFrom stats sd
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL){
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL, ind.eff = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
+  # if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
   if(!any(type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
@@ -65,11 +66,12 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
 
     # Step 2. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, y.lag = y.lag, ran.err = TRUE)$ate})
-
+    # ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
 
   }
-
 
   ### Block bootstrap
   if(type %in% c("block", "bc block")){
@@ -85,51 +87,71 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
     }, simplify = FALSE)
 
-    ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
+    #ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
 
-      unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
+    #  unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
 
-    }, SIMPLIFY = FALSE)
+    #}, SIMPLIFY = FALSE)
 
     # Step 3. Estimating individual effects and ATE for each bootstrap iteration
-    ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, y.lag = y.lag, ran.err = TRUE)$ate})
-
+    #ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    # ate_boot <- sapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
 
   }
 
-  ### Estimating ATE from the matrix of individual effects
+  ### Confidence interval for ATE
   ate_boot <- matrix(ate_boot, nrow = length(unique(data[post, "Time"])))
   rownames(ate_boot) <- unique(data[post, "Time"])
   conf.ate <- apply(ate_boot, 1, quantile, probs = c(alpha/2, 1 - alpha/2))
   var.ate <- apply(ate_boot, 1, var)
 
-  ### Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block" or "bca")
+  ### Confidence interval for the individual effects
+  conf.individual <- array(apply(ind_boot, 1, quantile, probs = c(0.025, 0.975)),
+                           dim = c(2,length(unique(data$ID)), length(unique(data[post, "Time"]))))
+  dimnames(conf.individual)[[3]] <- unique(data[post, "Time"])
 
+  ### Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block")
   if(type %in% c("bc classic", "bc block")){
 
-    # Bias correction
+    # Bias correction for ATE
     z0 <- mapply(x = apply(ate_boot, 1, as.list), y = ate, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
     lower <- pnorm(2*z0 + qnorm(alpha/2))
     upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
     conf.ate <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ate_boot, 1, as.list),
                        FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    # conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper)) # old
+
+    # Bias correction for the individual effects
+    z0 <- mapply(x = apply(ind_boot, 1, as.list), y = ind.eff, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
+    lower <- pnorm(2*z0 + qnorm(alpha/2))
+    upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
+    conf.individual <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ind_boot, 1, as.list),
+                              FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    conf.individual <- array(conf.individual, c(2, unique(data$ID), unique(data[post, "Time"])))
 
   }
 
-  if(type == "bca"){
+  if(type == "bca"){ # RICONTROLLARE
 
     counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, pre))-1)))
     Blist <- mapply(x = c(1,2,3), y = ate, FUN = function(x,y){
       list(Y = counts, tt = ate_boot[x, ], t0 = y)}, SIMPLIFY = FALSE)
     out2 <- mapply(B = Blist, FUN = bcajack2, MoreArgs = list(alpha = alpha), SIMPLIFY = FALSE)
     conf.ate <- sapply(out2, FUN = function(x)(x$lims[c(1,3), "bca"]))
+    # Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate) # old
+    # out2 <- bcajack2(B = Blist, alpha = alpha) # old
+    # conf.ate <- out2$lims[c(1,3),"bca"] # old
 
   }
 
-  # Returning results
-  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ]))
-}
 
+  # Returning results
+  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual))
+  # return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ], conf.individual = conf.individual))
+}
 #' Bootstrap inference for CATE
 #'
 #' Internal function, used within the MLCM routine for the estimation of CATE

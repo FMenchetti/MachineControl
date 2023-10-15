@@ -138,7 +138,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                             shrinkage = seq(0.01, 0.1, by = 0.01),
                             n.minobsinnode = c(10,20))
 
-    set.seed(1)
+    #set.seed(1)
     bo <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "gbm",
@@ -148,7 +148,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                 verbose = FALSE)
 
     # RANDOM FOREST
-    set.seed(1)
+    #set.seed(1)
     rf <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "rf",

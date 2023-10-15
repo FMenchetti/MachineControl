@@ -114,7 +114,7 @@
 #'
 #' # Estimation
 #' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)
+#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)#'
 #'
 #' # ATE & CATE
 #' fit$ate
@@ -122,6 +122,10 @@
 #'
 #' # Bootstrap confidence interval
 #' fit$conf.ate
+#'
+#' # Individual effects
+#' head(fit$ind.effects)
+#' head(fit$conf.individual)
 #'
 
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
@@ -132,7 +136,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   if(!(is.null(y) | class(y) == "character")) stop("y must be a character")
   if(!(is.null(timevar) | class(timevar) == "character")) stop("timevar must be a character")
   if(!(is.null(id) | class(id) == "character")) stop("id must be a character")
-  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive") # should be integer
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")  # should be integer
   if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
   if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
   if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
@@ -170,29 +174,29 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   }
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  ind <- which(data_panel[, "Time"] < int_date)
-  set.seed(1)
-  invisible(capture.output(
-    fit <- train(Y ~ .,
-                 data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-                 method = best$method,
-                 metric = metric,
-                 trControl = trainControl(method="none"),
-                 tuneGrid = best$bestTune)
-  ))
+  # ind <- which(data_panel[, "Time"] < int_date)
+  # set.seed(1)
+  # invisible(capture.output(
+  #  fit <- train(Y ~ .,
+  #               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+  #               method = best$method,
+  #               metric = metric,
+  #               trControl = trainControl(method="none"),
+  #               tuneGrid = best$bestTune)
+  # ))
 
-  ### ATE estimation & inference
-  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  ### ATE & individual effects estimation
+  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
   ate <- effects$ate
+  ind_effects <- effects$ind_effects
 
+  ### ATE & individual effects inference
   invisible(capture.output(
 
-    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate, alpha = alpha, metric = metric, y.lag = y.lag)
+    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+                         alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
 
   ))
-
-  ### Individual effects
-  ind_effects <- effects$ind_effects
 
   ### CATE estimation & inference
   if(CATE){
@@ -220,7 +224,8 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
 
   ### Saving results
-  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, cate = cate, cate.inf = cate.inf))
+  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate,
+              ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
 }
 
@@ -397,6 +402,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 #' there will be as many initial NAs as the number of \code{lag}.)
 #'
 #' @noRd
+#' @importFrom utils head
 
 .true_lag <- function(x, lag = 1){
 
