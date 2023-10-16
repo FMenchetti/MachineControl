@@ -89,7 +89,7 @@
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
 #'                             ML_methods = list(enet, linreg))
 #'
-#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
+#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv$best,
 #'                nboot = 10, CATE = FALSE)
 #'
 #' causal$ate
@@ -101,12 +101,11 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(!(int_date %in% data[, "Time"])) stop("int_date must be contained in timevar")
   if(sum(unique(data[, "Time"]) < int_date) - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
-  #if(length(unique(data[, "Time"])) - 2 - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
   if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  if(is.list(ML_methods)){if(any(sapply(ML_methods, FUN = length) != 2)) stop("'ML_methods' must be a list of methods, each of length 2")}
+  if(!is.null(ML_methods)){if(!is.list(ML_methods)) stop("ML_methods must be a list")}
   if(is.list(ML_methods)){
-    if(any(sapply(ML_methods, FUN = function(x)(any(!names(x) %in% c("method", "tuneGrid")))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
+    if(any(sapply(ML_methods, FUN = function(x)(!all(c("method", "tuneGrid") %in% names(x)))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
   Tt <- length(unique(data[, "Time"]))
@@ -180,12 +179,13 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   } else {
 
-    m_list <- lapply(ML_methods, FUN = function(x){train(Y ~.,
-                                                         data = data[, !(names(data) %in% c("ID", "Time"))],
-                                                         method = x$method,
-                                                         metric = metric,
-                                                         trControl = ctrl,
-                                                         tuneGrid = x$tuneGrid)})
+    invisible(capture.output(
+
+      m_list <- lapply(ML_methods, FUN = function(x)(do.call(train, c(list(Y ~ .,
+                                                                           data = data[, !(names(data) %in% c("ID", "Time"))],
+                                                                           metric = metric,
+                                                                           trControl = ctrl), x))))
+    ))
 
   }
 
@@ -195,7 +195,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   ind <- which(rmse_min == min(rmse_min))
 
   ### Returning result
-  return(best = m_list[[ind]])
+  return(list(best = m_list[[ind]], best.metric = min(rmse_min)))
 
 }
 

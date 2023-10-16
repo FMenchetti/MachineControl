@@ -165,7 +165,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   ### Panel cross-validation
   if(is.null(PCV)){
 
-    best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)
+    best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
 
   } else {
 
@@ -276,7 +276,7 @@ as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
   panel <- data.frame(Time = timevar, ID = id, Y = y, x)
 
   ### STEP 2. Are there any past lags of 'y' to include?
-  if(!is.null(y.lag)){
+  if(y.lag > 0){
 
     # Applying the internal '.true_lag' function to the Y variable of each unit in the panel
     ids <- unique(id)

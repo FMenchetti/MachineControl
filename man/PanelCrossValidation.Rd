@@ -84,7 +84,7 @@ linreg <- list(method = "lm",
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg))
 
-causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
+causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv$best,
                nboot = 10, CATE = FALSE)
 
 causal$ate
