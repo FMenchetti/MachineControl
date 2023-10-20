@@ -17,6 +17,7 @@ MLCM(
   metric = "RMSE",
   PCV = NULL,
   CATE = FALSE,
+  x.cate = NULL,
   alpha = 0.05
 )
 }
@@ -47,6 +48,9 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 \item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
 
 \item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.}
+
+\item{x.cate}{Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
+same covariates used to estimate ATE will be used. See Details.}
 
 \item{alpha}{Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 95\% confidence interval.}
@@ -118,21 +122,31 @@ underlying assumptions see the paper cited above.
 }
 \examples{
 
-### Example 1. Estimating ATE and CATE (with default ML methods)
+### Example 1. Estimating ATE (with default ML methods)
 
 # Estimation
 fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-            inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)#'
+            inf_type = "classic", nboot = 10, y.lag = 2)
 
-# ATE & CATE
+# ATE
 fit$ate
-# plot(fit$cate) ; text(fit$cate)
-
-# Bootstrap confidence interval
 fit$conf.ate
 
 # Individual effects
 head(fit$ind.effects)
 head(fit$conf.individual)
+
+### Example 2. Estimating ATE and CATE (with external regressors in CATE)
+
+# Simulating time-varying external regressors
+x.cate <- cbind(ID = rep(1:100, each = 2), year = rep(2019:2020, times = 100), x1 = rnorm(200),
+                x2 = 2*rnorm(200), x3 = sample(1:5, size = 200, replace = TRUE))
+
+# Estimation
+fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
+            inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2, x.cate = x.cate)
+
+# CATE
+fit$cate.inf
 
 }

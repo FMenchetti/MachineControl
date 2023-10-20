@@ -109,31 +109,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   ### CATE estimation & inference
   if(CATE){
 
-    # Selecting post-intervention times
-    post <- which(data_panel$Time >= int_date)
-    postimes <- data_panel$Time[post]
 
-    # Matrix containing the estimated individual effects and post-intervention covariates
-    if(is.null(x.cate)){
-
-      data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects[,-1])), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
-
-    } else {
-
-      # x.cate <- reshape(x.cate, direction = "long")
-      data_cate <- data.frame(Time = postimes, ID = data_panel[post, "ID"], effect = c(t(ind_effects[,-1])))
-      data_cate <- merge(data_cate, x.cate, by = "ID")
-      data_cate$ID <- NULL
-    }
-
-
-    # CATE estimation & inference
-    cate <- lapply(unique(postimes), FUN = function(x){
-      rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data_panel$ID)))})
-    mat <- data.frame(postimes, c(t(ind_effects)))
-    cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
-      boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
-    names(cate.inf) <- unique(postimes)
 
   } else {
 
@@ -588,6 +564,37 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
 }
+
+cate_est <- function(data, int_date, x.cate, ind_effects, nboot){
+
+  # Selecting post-intervention times
+  post <- which(data_panel$Time >= int_date)
+  postimes <- data_panel$Time[post]
+
+  # Matrix containing the estimated individual effects and post-intervention covariates
+  if(is.null(x.cate)){
+
+    data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects[,-1])), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
+
+  } else {
+
+    # x.cate <- reshape(x.cate, direction = "long")
+    data_cate <- data.frame(Time = postimes, ID = data_panel[post, "ID"], effect = c(t(ind_effects[,-1])))
+    data_cate <- merge(data_cate, x.cate, by = "ID")
+    data_cate$ID <- NULL
+  }
+
+
+  # CATE estimation & inference
+  cate <- lapply(unique(postimes), FUN = function(x){
+    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data_panel$ID)))})
+  mat <- data.frame(postimes, c(t(ind_effects)))
+  cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
+    boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
+  names(cate.inf) <- unique(postimes)
+
+}
+
 
 check_xcate <- function(x.cate, data, id){
 

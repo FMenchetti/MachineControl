@@ -37,6 +37,8 @@
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
+#' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
+#'                    same covariates used to estimate ATE will be used. See Details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
 #' @details
@@ -110,25 +112,34 @@
 #'
 #' @examples
 #'
-#' ### Example 1. Estimating ATE and CATE (with default ML methods)
+#' ### Example 1. Estimating ATE (with default ML methods)
 #'
 #' # Estimation
 #' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2)#'
+#'             inf_type = "classic", nboot = 10, y.lag = 2)
 #'
-#' # ATE & CATE
+#' # ATE
 #' fit$ate
-#' # plot(fit$cate) ; text(fit$cate)
-#'
-#' # Bootstrap confidence interval
 #' fit$conf.ate
 #'
 #' # Individual effects
 #' head(fit$ind.effects)
 #' head(fit$conf.individual)
 #'
-
-MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
+#' ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
+#'
+#' # Simulating time-varying external regressors
+#' x.cate <- cbind(ID = rep(1:100, each = 2), year = rep(2019:2020, times = 100), x1 = rnorm(200),
+#'                 x2 = 2*rnorm(200), x3 = sample(1:5, size = 200, replace = TRUE))
+#'
+#' # Estimation
+#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
+#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2, x.cate = x.cate)
+#'
+#' # CATE
+#' fit$cate.inf
+#'
+MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
 
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -148,6 +159,11 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
+  if(CATE & !is.null(x.cate)){
+
+    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
+
+    } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
@@ -201,20 +217,9 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   ### CATE estimation & inference
   if(CATE){
 
-    # Selecting post-intervention times
-    post <- which(data_panel$Time >= int_date)
-    postimes <- data_panel$Time[post]
-
-    # Matrix containing the estimated individual effects and post-intervention covariates
-    data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects)), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
-
-    # CATE estimation & inference
-    cate <- lapply(unique(postimes), FUN = function(x){
-      rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data_panel$ID)))})
-    mat <- data.frame(postimes, c(t(ind_effects)))
-    cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
-      boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
-    names(cate.inf) <- unique(postimes)
+    cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
+    cate <- cate_effects$cate
+    cate.inf <- cate_effects$cate.inf
 
   } else {
 
@@ -371,9 +376,9 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
       # Substituting counterfactual Y (contemporaneous)
       data[post, "Y"] <- pred - error
       # Substituting counterfactual Y in future lags
-      maxl <- max(1, y.lag-i+1)
+      minl <- min(y.lag, length(unique(postimes))-i)
 
-      for(l  in 1:maxl){
+      for(l  in 1:minl){
 
         data[(post+l), paste0("Ylag",l)] <- pred - error
         data
@@ -383,9 +388,63 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   }
 
   ### Step 3. Returning the matrix of individual effects and the ATE
+
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
-  return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
+  return(list(ind_effects = ind_effects, ate = colMeans(ind_effects[, -1])))
 }
+
+#' CATE estimation
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date The date of the intervention, treatment, policy introduction or shock.
+#' @param ind_effects A matrix of estimated individual causal effects, returned from a previous
+#'                    call to \code{ate_est}.
+#' @param x.cate Optional, a matrix or data.frame of external regressors to use for CATE estimation.
+#' @param nboot Number of bootstrap iterations.
+#' @param alpha Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+#'              95\% confidence interval.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#' \item cate: a list with as many components as the post-intervention period,
+#'       each containing an 'rpart' object.
+#' \item cate.inf: a list with as many components as the post-intervention period,
+#'       each containing the estimated CATE, its variance and confidence interval
+#'       for the terminal nodes.
+#' }
+#' @noRd
+
+cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
+
+  ### Step 1. Selecting post-intervention times
+  post <- which(data$Time >= int_date)
+  postimes <- data$Time[post]
+
+  ### Step 2. Matrix containing the estimated individual effects and post-intervention covariates
+  if(is.null(x.cate)){
+
+    data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects[,-1])), data[post, !names(data) %in% c("Y","Time","ID", "Ylag1")])
+
+  } else {
+
+    data_cate <- data.frame(Time = postimes, ID = data[post, "ID"], effect = c(t(ind_effects[,-1])))
+    data_cate <- merge(data_cate, x.cate, by = c("ID", "Time"))
+    data_cate$ID <- NULL
+
+  }
+
+  ### Step 3. CATE estimation & inference
+  cate <- lapply(unique(postimes), FUN = function(x){
+    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data$ID)))})
+  mat <- data.frame(postimes, c(t(ind_effects[,-1])))
+  cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
+    boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
+  names(cate.inf) <- unique(postimes)
+
+  ### Step 4. Returning estimated CATE
+  return(list(cate = cate, cate.inf = cate.inf))
+}
+
 
 #' Generation of lagged variables
 #'
@@ -410,4 +469,44 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   x_lag <- c(rep(NA, times = lag), head(x, n = length(x)-lag))
   return(x_lag)
 
+}
+
+
+#' Checking CATE
+#'
+#' Internal function, used when external regressors are included in the estimation of CATE.
+#' See Details in MLCM function. The function is purely used to checks the concordance of
+#' the information included in 'data' and 'x.cate' (e.g., both datasets should contain
+#' the same unique identifiers).
+#'
+#' @param x.cate Matrix or data.frame of external regressors used for CATE estimation
+#' @param data Matrix, data.frame or PanelMLCM object
+#' @param id Character, variable in 'data' containing unique identifiers
+#' @param timevar Character, variable in 'data' containing times
+#'
+#' @noRd
+
+check_xcate <- function(x.cate, data, id, timevar){
+
+  if(!(is.matrix(x.cate)|is.data.frame(x.cate))) stop("x.var must be 'matrix' or 'data.frame'")
+  x.cate <- as.data.frame(x.cate)
+
+  if(is.null(id)){ # later, change with is.PanelMLCM
+
+    ind <- which(colnames(data) == "ID")
+    ti <- which(colnames(data) == "Time")
+    if(!colnames(data)[ind] %in% colnames(x.cate)) stop("'x.cate' must have a column named 'ID' with unique identifiers, like the one in 'data'")
+    if(!colnames(data)[ti] %in% colnames(x.cate)) stop("'x.cate' must have a column named 'Time' with time identifiers, like the one in 'data'")
+    if(!all.equal(unique(data[, "ID"]), unique(x.cate[, "ID"]))) stop ("unique identifiers differ for 'x.cate' and 'data'")
+
+  } else {
+
+    if(!id %in% colnames(x.cate)) stop("'x.cate' does not have unique identifiers or the colnames of identifiers do not match those in 'data'")
+    if(!timevar %in% colnames(x.cate)) stop("'x.cate' does not have time identifiers or the colnames do not match those in 'data'")
+    if(!all.equal(unique(data[, id]),unique(x.cate[, id]))) stop ("unique identifiers differ for 'x.cate' and 'data'")
+    colnames(x.cate)[which(colnames(x.cate) == paste(id))] <- "ID"
+    colnames(x.cate)[which(colnames(x.cate) == paste(timevar))] <- "Time"
+  }
+
+  return(x.cate)
 }
