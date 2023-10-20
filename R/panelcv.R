@@ -195,7 +195,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   ind <- which(rmse_min == min(rmse_min))
 
   ### Returning result
-  return(list(best = m_list[[ind]], best.metric = min(rmse_min)))
+  return(list(best = m_list[[ind]], best.metric = min(rmse_min), all_methods = m_list))
 
 }
 

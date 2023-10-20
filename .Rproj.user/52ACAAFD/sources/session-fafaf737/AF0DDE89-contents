@@ -27,11 +27,13 @@
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
+#' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the 
+#'                    same covariates used to estimate ATE will be used. See details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
 
-MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, alpha = 0.05){
-
+MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
+  
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
   if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("Unspecified columns in 'matrix' or 'data.frame' data")
@@ -50,7 +52,11 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-
+  if(CATE & !is.null(x.cate)){
+    check_xcate(x.cate = x.cate, data = data, id = id)
+  } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
+  
+  
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
@@ -76,39 +82,50 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   }
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  # ind <- which(data_panel[, "Time"] < int_date)
-  # set.seed(1)
-  # invisible(capture.output(
-  #  fit <- train(Y ~ .,
-  #               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-  #               method = best$method,
-  #               metric = metric,
-  #               trControl = trainControl(method="none"),
-  #               tuneGrid = best$bestTune)
-  # ))
+  ind <- which(data_panel[, "Time"] < int_date)
+  set.seed(1)
+  invisible(capture.output(
+   fit <- train(Y ~ .,
+                data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+                method = best$method,
+                metric = metric,
+                trControl = trainControl(method="none"),
+                tuneGrid = best$bestTune)
+  ))
 
   ### ATE & individual effects estimation
-  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  effects <- ate_est(data = data_panel, int_date = int_date, best = fit, metric = metric, y.lag = y.lag, ran.err = FALSE)
   ate <- effects$ate
   ind_effects <- effects$ind_effects
 
   ### ATE & individual effects inference
   invisible(capture.output(
 
-    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = fit, type = inf_type, nboot = nboot, ate = ate,
                          alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
 
   ))
-
+  
   ### CATE estimation & inference
-  if(CATE){
+  if(CATE){ 
 
     # Selecting post-intervention times
     post <- which(data_panel$Time >= int_date)
     postimes <- data_panel$Time[post]
 
     # Matrix containing the estimated individual effects and post-intervention covariates
-    data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects)), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
+    if(is.null(x.cate)){
+      
+      data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects[,-1])), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
+      
+    } else {
+      
+      # x.cate <- reshape(x.cate, direction = "long")
+      data_cate <- data.frame(Time = postimes, ID = data_panel[post, "ID"], effect = c(t(ind_effects[,-1])))
+      data_cate <- merge(data_cate, x.cate, by = "ID")
+      data_cate$ID <- NULL
+    }
+    
 
     # CATE estimation & inference
     cate <- lapply(unique(postimes), FUN = function(x){
@@ -126,7 +143,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
 
   ### Saving results
-  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate,
+  return(list(best_method = best, fit = fit, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate,
               ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
 }
@@ -241,7 +258,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                             shrinkage = seq(0.01, 0.1, by = 0.01),
                             n.minobsinnode = c(10,20))
 
-    #set.seed(1)
+    set.seed(1)
     bo <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "gbm",
@@ -251,7 +268,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                 verbose = FALSE)
 
     # RANDOM FOREST
-    #set.seed(1)
+    set.seed(1)
     rf <- train(Y ~ .,
                 data = data[, !(names(data) %in% c("ID", "Time"))],
                 method = "rf",
@@ -293,13 +310,14 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   }
 
-
+  
   ### STEP 4. Selecting the "best" ML algorithm based on the provided performance metric
+  names(m_list) <- lapply(m_list, function(x)(x$method))
   rmse_min <- sapply(m_list, FUN = function(x) min(x$results[, metric]), simplify = T)
   ind <- which(rmse_min == min(rmse_min))
 
   ### Returning result
-  return(list(best = m_list[[ind]], best.metric = min(rmse_min)))
+  return(list(best = m_list[[ind]], best.metric = min(rmse_min), all_methods = m_list))
 
 }
 
@@ -567,5 +585,25 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   }
 
   ### Step 3. Returning the matrix of individual effects and the ATE
+  ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
 }
+
+check_xcate <- function(x.cate, data, id){ 
+  
+  if(!(is.matrix(x.cate)|is.data.frame(x.cate))) stop("x.var must be 'matrix' or 'data.frame'")
+  
+  if(is.null(id)){
+    
+    ind <- which(colnames(data) == "ID")
+    if(!colnames(data)[ind] %in% colnames(x.cate)){stop("x.cate must have a column named 'ID' with unique identifiers, like the one in 'data'")}
+    
+  } else {
+    
+    if(!id %in% colnames(x.cate)){stop("x.cate does not have unique identifiers or the identifiers do not match those in 'data'")}
+    colnames(x.cate)[which(colnames(x.cate) == paste(id))] <- "ID"
+  }
+  
+  return(x.cate)
+}
+
