@@ -27,13 +27,13 @@
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
-#' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the 
+#' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
 #'                    same covariates used to estimate ATE will be used. See details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
 
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
-  
+
   ### Parameter checks
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
   if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("Unspecified columns in 'matrix' or 'data.frame' data")
@@ -55,8 +55,8 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   if(CATE & !is.null(x.cate)){
     check_xcate(x.cate = x.cate, data = data, id = id)
   } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
-  
-  
+
+
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
@@ -69,7 +69,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
   }
 
-  
+
   ### Panel cross-validation
   if(is.null(PCV)){
 
@@ -105,9 +105,9 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
                          alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
 
   ))
-  
+
   ### CATE estimation & inference
-  if(CATE){ 
+  if(CATE){
 
     # Selecting post-intervention times
     post <- which(data_panel$Time >= int_date)
@@ -115,17 +115,17 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
     # Matrix containing the estimated individual effects and post-intervention covariates
     if(is.null(x.cate)){
-      
+
       data_cate <- data.frame(Time = postimes, effect = c(t(ind_effects[,-1])), data_panel[post, !names(data_panel) %in% c("Y","Time","ID", "Ylag1")])
-      
+
     } else {
-      
+
       # x.cate <- reshape(x.cate, direction = "long")
       data_cate <- data.frame(Time = postimes, ID = data_panel[post, "ID"], effect = c(t(ind_effects[,-1])))
       data_cate <- merge(data_cate, x.cate, by = "ID")
       data_cate$ID <- NULL
     }
-    
+
 
     # CATE estimation & inference
     cate <- lapply(unique(postimes), FUN = function(x){
@@ -299,9 +299,9 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
     m_list <- list(bo = bo, rf = rf, lasso = lasso, pls = pls)
 
   } else {
-    
+
     invisible(capture.output(
-    
+
     m_list <- lapply(ML_methods, FUN = function(x)(do.call(train, c(list(Y ~ .,
                                                                          data = data[, !(names(data) %in% c("ID", "Time"))],
                                                                          metric = metric,
@@ -310,7 +310,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   }
 
-  
+
   ### STEP 4. Selecting the "best" ML algorithm based on the provided performance metric
   names(m_list) <- lapply(m_list, function(x)(x$method))
   rmse_min <- sapply(m_list, FUN = function(x) min(x$results[, metric]), simplify = T)
@@ -524,7 +524,7 @@ boot_cate <- function(effect, cate, nboot, alpha){
 #'
 
 ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
-  
+
   ### Step 1. Settings (empty matrix)
   postimes <- data[which(data[, "Time"] >= int_date), "Time"]
   ind_effects <- matrix(NA, nrow = nrow(data[data$Time == int_date, ]) , ncol = length(unique(postimes)))
@@ -589,21 +589,21 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
 }
 
-check_xcate <- function(x.cate, data, id){ 
-  
+check_xcate <- function(x.cate, data, id){
+
   if(!(is.matrix(x.cate)|is.data.frame(x.cate))) stop("x.var must be 'matrix' or 'data.frame'")
-  
+
   if(is.null(id)){
-    
+
     ind <- which(colnames(data) == "ID")
-    if(!colnames(data)[ind] %in% colnames(x.cate)){stop("x.cate must have a column named 'ID' with unique identifiers, like the one in 'data'")}
-    
+    if(!colnames(data)[ind] %in% colnames(x.cate)) stop("x.cate must have a column named 'ID' with unique identifiers, like the one in 'data'")
+
   } else {
-    
-    if(!id %in% colnames(x.cate)){stop("x.cate does not have unique identifiers or the identifiers do not match those in 'data'")}
+
+    if(!id %in% colnames(x.cate)) stop("x.cate does not have unique identifiers or the identifiers do not match those in 'data'")
     colnames(x.cate)[which(colnames(x.cate) == paste(id))] <- "ID"
   }
-  
+
   return(x.cate)
 }
 

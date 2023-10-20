@@ -383,6 +383,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   }
 
   ### Step 3. Returning the matrix of individual effects and the ATE
+  ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   return(list(ind_effects = ind_effects, ate = colMeans(ind_effects)))
 }
 
