@@ -1,26 +1,26 @@
 {
-    "id": "1CA88BE5",
-    "path": "~/GitHub/MachineControl/R/panelcv.R",
-    "project_path": "R/panelcv.R",
+    "id": "9DF307BC",
+    "path": "~/GitHub/MachineControl/R/bootstrap.R",
+    "project_path": "R/bootstrap.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1690183964147.0,
+    "created": 1690205783282.0,
     "source_on_save": false,
-    "relative_order": 1,
+    "relative_order": 4,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "12,74",
-        "scrollLine": "0"
+        "cursorPosition": "53,30",
+        "scrollLine": "51"
     },
     "folds": "",
-    "lastKnownWriteTime": 1695107825,
+    "lastKnownWriteTime": 1698935575,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1695107825,
+    "last_content_update": 1698935575,
     "read_only": false,
     "read_only_alternatives": []
 }

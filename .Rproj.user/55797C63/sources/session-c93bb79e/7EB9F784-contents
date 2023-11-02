@@ -1,13 +1,3 @@
-###############################################################################
-##
-## MLCM function
-##
-## Authors: Cerqua A., Letta M., Menchetti F.
-##
-## Date last modified: July 2023
-##
-###############################################################################
-
 #' Machine Learning Control Method
 #'
 #' This function is the main workhorse of the package 'MachineControl'. It takes as
@@ -38,107 +28,10 @@
 #' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
 #' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
-#'                    same covariates used to estimate ATE will be used. See Details.
+#'                    same covariates used to estimate ATE will be used. See details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
-#' @details
-#' The panel \code{data} must at least include the response variable, a column of the time variable,
-#' and a column with the unit identifiers. Lagged values of the outcome, lagged or contemporaneous
-#' exogenous covariates, control series can also be added in the panel dataset. The ML algorithms
-#' will automatically treat every column that is left as additional information to improve the
-#' prediction of the counterfactual post-intervention outcome.
-#'
-#' By default, the function internally uses \code{as.PanelMLCM} to organize a messy panel dataset and
-#' then compares the performance of two linear models (Partial Least Squares and LASSO)
-#' and two non-linear models (Random Forests and Stochastic Gradient Boosting) in one-step ahead
-#' predictions by running internally the panel cross validation routine. The comparison is performed based on
-#' the \code{metric} provided by the users and lasts until the end of the pre-intervention period.
-#' Different ML algorithms can be selected by the user among all the options available in the \code{caret}
-#' package. In this case, the users must start from a tidy panel dataset (from a previous call to \code{as.PanelMLCM})
-#' and must execute their own panel cross validation. See the examples below.
-#'
-#' By default, the function estimates the ATE by averaging the individual causal effects across units. This is done
-#' for each time period after \code{int_date} (the first ATE will be computed exactly at \code{int_date}).
-#'
-#' The user can choose among many different bootstrap algorithms. For details see the documentation
-#' of the function \code{boot_ate}. For details on the PCV see the documentation of the function
-#' \code{PanelCrossValidation}.
-#'
-#' To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the
-#' \code{pcv_block} parameter, e.g., \code{pcv_block = 1} (the default) indicates to use the observations
-#' in the first time period as the first training sample and to test on the next period. Then, the second
-#' training sample will be formed by the observations on the first two time periods. Validation will be
-#' performed on the third period and so on. For longer series, specifying \code{pcv_block > 1} reduces computational time.
-#' For example, by setting \code{pcv_block = 4} when the length of the pre-intervention time series is 7 reduces the number
-#' of validation sets to 3 instead of 6.
-#'
-#' By default, the function estimates an Average Treatment Effect (ATE), but when \code{CATE = TRUE} it also estimates
-#' a Conditional Average Treatment Effect (CATE) as described in Cerqua A., Letta M. & Menchetti F.
-#' <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>. In short, CATE is estimated with a regression tree
-#' and it is of interest when researchers suspect that the policy ('treatment' or 'intervention') has produced
-#' heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
-#' underlying assumptions see the paper cited above.
-#'
-#'
-#' @return A list with the following components:
-#' \itemize{
-#'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
-#'   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
-#'   on all pre-intervention data
-#'   \item \code{ate}: the estimated ATE
-#'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-#'   by the user in 'inf_type'
-#'   \item \code{conf.ate}: a (1-\code{alpha})% bootstrap confidence interval
-#'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
-#'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
-#'   estimated by bootstrap
-#' }
-#' @export
-#' @import caret
-#' @importFrom rpart rpart
-#' @importFrom bcaboot bcajack2
-#' @importFrom CAST CreateSpacetimeFolds
-#' @importFrom gbm gbm
-#' @importFrom elasticnet enet
-#' @importFrom pls plsr
-#' @importFrom randomForest randomForest
-#' @importFrom utils capture.output
-#' @importFrom stats quantile
-#' @importFrom stats qnorm
-#' @importFrom stats var
-#' @importFrom stats pnorm
-#' @importFrom stats rnorm
-#' @importFrom stats sd
-#'
-#' @examples
-#'
-#' ### Example 1. Estimating ATE (with default ML methods)
-#'
-#' # Estimation
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-#'             inf_type = "classic", nboot = 10, y.lag = 2)
-#'
-#' # ATE
-#' fit$ate
-#' fit$conf.ate
-#'
-#' # Individual effects
-#' head(fit$ind.effects)
-#' head(fit$conf.individual)
-#'
-#' ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
-#'
-#' # Simulating time-varying external regressors
-#' x.cate <- cbind(ID = rep(1:100, each = 2), year = rep(2019:2020, times = 100), x1 = rnorm(200),
-#'                 x2 = 2*rnorm(200), x3 = sample(1:5, size = 200, replace = TRUE))
-#'
-#' # Estimation
-#' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
-#'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2, x.cate = x.cate)
-#'
-#' # CATE
-#' fit$cate.inf
-#'
+
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
 
   ### Parameter checks
@@ -163,7 +56,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
     x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
 
-    } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
+  } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
@@ -190,16 +83,16 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   }
 
   ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  # ind <- which(data_panel[, "Time"] < int_date)
-  # set.seed(1)
-  # invisible(capture.output(
-  #  fit <- train(Y ~ .,
-  #               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-  #               method = best$method,
-  #               metric = metric,
-  #               trControl = trainControl(method="none"),
-  #               tuneGrid = best$bestTune)
-  # ))
+  ind <- which(data_panel[, "Time"] < int_date)
+  set.seed(1)
+  invisible(capture.output(
+   fit <- train(Y ~ .,
+                data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
+                method = best$method,
+                metric = metric,
+                trControl = trainControl(method="none"),
+                tuneGrid = best$bestTune)
+  ))
 
   ### ATE & individual effects estimation
   effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
@@ -233,7 +126,6 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
               ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
 }
-
 #' Structuring the panel dataset
 #'
 #' This function takes as input the panel dataset given by the user and changes the
@@ -247,23 +139,6 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 #' @param id Numeric, the column containing the ID's.
 #' @param y.lag Optional, number of lags of the dependent variable to include in the model.
 #'
-#' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
-#' users full flexibility in the choice of the ML algorithms and during the panel cross validation.
-#' See the documentation of the function \code{PanelCrossValidation}.
-#'
-#' @return An object of class 'data.frame' and 'PanelMLCM'.
-#' @export
-#' @examples
-#'
-#' # Start from a disorganized panel dataset
-#' head(data)
-#'
-#' # Run as.PanelMLCM
-#' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))], y.lag = 2)
-#'
-#' # Results
-#' head(newdata)
 
 as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
 
@@ -300,6 +175,313 @@ as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
   return(panel)
 }
 
+#' Panel Cross Validation
+#'
+#' This function implements the panel cross validation technique as described in
+#' Cerqua A., Letta M. & Menchetti F., (2023) <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4315389>.
+#' It works as a rolling window training and testing procedure where the ML methods are trained recursively on the
+#' the observations in the first $t$ time periods and tested in the prediction of the next periods.
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date The date of the intervention, treatment, policy introduction or shock.
+#' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
+#' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
+#'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
+#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
+#' @return A list of class \code{train} with the best-performing ML method.
+#'
+
+PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+
+  ### Parameter checks
+  if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
+  if(!(int_date %in% data[, "Time"])) stop("int_date must be contained in timevar")
+  if(sum(unique(data[, "Time"]) < int_date) - pcv_block < 1) stop("Panel cross validation must be performed in at least one time period")
+  if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
+  if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
+  #if(is.list(ML_methods)){if(any(sapply(ML_methods, FUN = length) != 2)) stop("'ML_methods' must be a list of methods, each of length 2")}
+  #if(is.list(ML_methods)){
+  #  if(any(sapply(ML_methods, FUN = function(x)(any(!names(x) %in% c("method", "tuneGrid")))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
+
+  ### STEP 1. The CAST package is used to generate separate testing sets for each year
+  Tt <- length(unique(data[, "Time"]))
+  indices <- CreateSpacetimeFolds(data, timevar = "Time", k = Tt)
+  end <- sum(unique(data[, "Time"]) < (int_date - 1) )
+  trainx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[1:x]))
+  testx <- lapply(pcv_block:end, FUN = function(x) unlist(indices$indexOut[[x+1]]))
+
+  ### STEP 2. Set control function by specifying the training and testing folds that caret will use
+  ###         for cross-validation and tuning of the hyperparameters (i.e., the combination of folds defined above)
+  if(is.null(trControl)){
+
+    ctrl <- trainControl(index = trainx, indexOut = testx)
+
+  } else {
+
+    ctrl <- trControl # da capire come fare i param checks
+
+  }
+
+
+  ### STEP 3.  Tune the hyperparameters of each of the ML algorithms via temporal cross-validation
+
+  if(is.null(ML_methods)){
+
+    # STOCHASTIC GRADIENT BOOSTING
+    gbmGrid <-  expand.grid(interaction.depth = c(1, 2, 3),
+                            n.trees=c(500, 1000, 1500, 2000),
+                            shrinkage = seq(0.01, 0.1, by = 0.01),
+                            n.minobsinnode = c(10,20))
+
+    set.seed(1)
+    bo <- train(Y ~ .,
+                data = data[, !(names(data) %in% c("ID", "Time"))],
+                method = "gbm",
+                metric = metric,
+                trControl = ctrl,
+                tuneGrid = gbmGrid,
+                verbose = FALSE)
+
+    # RANDOM FOREST
+    set.seed(1)
+    rf <- train(Y ~ .,
+                data = data[, !(names(data) %in% c("ID", "Time"))],
+                method = "rf",
+                metric = metric,
+                search = "grid",
+                trControl = ctrl,
+                tuneGrid = expand.grid(mtry = (2:(ncol(data)-3))),
+                ntree=500)
+    # LASSO
+    lasso <- train(Y ~ .,
+                   data = data[, !(names(data) %in% c("ID", "Time"))],
+                   method = "lasso",
+                   metric = metric,
+                   trControl = ctrl,
+                   tuneGrid = expand.grid(fraction = seq(0.1, 0.9, by = 0.1)),
+                   preProc=c("center", "scale"))
+
+    # PLS
+    pls <- train(Y ~ .,
+                 data = data[, !(names(data) %in% c("ID", "Time"))],
+                 method = "pls",
+                 metric = metric,
+                 trControl = ctrl,
+                 tuneGrid = expand.grid(ncomp = c(1:10)),
+                 preProc=c("center", "scale"))
+
+    # Storing results in a list
+    m_list <- list(bo = bo, rf = rf, lasso = lasso, pls = pls)
+
+  } else {
+
+    invisible(capture.output(
+
+    m_list <- lapply(ML_methods, FUN = function(x){set.seed(1); do.call(train, c(list(Y ~ .,
+                                                                         data = data[, !(names(data) %in% c("ID", "Time"))],
+                                                                         metric = metric,
+                                                                         trControl = ctrl), x))})
+    ))
+
+  }
+
+
+  ### STEP 4. Selecting the "best" ML algorithm based on the provided performance metric
+  names(m_list) <- lapply(m_list, function(x)(x$method))
+  rmse_min <- sapply(m_list, FUN = function(x) min(x$results[, metric]), simplify = T)
+  ind <- which(rmse_min == min(rmse_min))
+
+  ### Returning result
+  return(list(best = m_list[[ind]], best.metric = min(rmse_min), all_methods = m_list))
+
+}
+
+#' Bootstrap inference for ATE
+#'
+#' Internal function, used within the MLCM routine for the estimation of ATE
+#' standard error and 95% confidence interval.
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
+#' @param bestt Object of class \code{train}, the best-performing ML method as selected
+#'              by panel cross validation.
+#' @param type Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
+#' @param nboot Number of bootstrap replications.
+#' @param alpha Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+#'              95\% confidence interval
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param ate Numeric, the estimated ATE in the sample.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#'   \item \code{type}: the inference type that has been performed
+#'   \item \code{ate.boot}: the bootstrap distribution for ATE
+#'   \item \code{conf.ate}: bootstrap confidence interval at the 95% level
+#'   \item \code{var.ate}: estimated variance for ATE
+#'   \item \code{ate.lower}: lower confidence interval bound
+#'   \item \code{ate.upper}: upper confidence interval bound
+#' }
+
+
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL, ind.eff = NULL){
+
+  ### Param checks
+  if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
+  # if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
+  if(!any(type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
+  if(!is.numeric(ate)) stop ("ATE must be numeric")
+
+
+  ### Setting pre/post intervention periods
+  pre <- which(data[, "Time"] < int_date)
+  post <- which(data[, "Time"] >= int_date)
+
+  ### Classic bootstrap
+  if(type %in% c("classic", "bc classic", "bca")){
+
+    # Step 1. Sampling the indices (time-id pairs)
+    ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
+
+    # Step 2. Estimating individual effects and ATE for each bootstrap iteration
+    # ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
+
+  }
+
+  ### Block bootstrap
+  if(type %in% c("block", "bc block")){
+
+    # Step 1. Sampling the units
+    ids <- unique(data$ID)
+    ind1 <- sapply(1:nboot, function(boot){set.seed(boot); sample(ids, size = length(ids), replace = TRUE)}, simplify = FALSE)
+
+    # Step 2. Indices pre/post interventions corresponding to the sampled units
+    ii0 <- sapply(ind1, FUN = function(x){
+
+      unlist(sapply(x, function(y)(intersect(which(data[, "ID"] %in% y), pre)), simplify = FALSE))
+
+    }, simplify = FALSE)
+
+    #ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
+
+    #  unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
+
+    #}, SIMPLIFY = FALSE)
+    
+    # Step 3. Estimating individual effects and ATE for each bootstrap iteration
+    #ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    # ate_boot <- sapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
+    eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    ate_boot <- sapply(eff_boot, function(x)(x$ate))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects[,-1]))
+
+  }
+
+  ### Confidence interval for ATE
+  ate_boot <- matrix(ate_boot, nrow = length(unique(data[post, "Time"])))
+  rownames(ate_boot) <- unique(data[post, "Time"])
+  conf.ate <- apply(ate_boot, 1, quantile, probs = c(alpha/2, 1 - alpha/2))
+  var.ate <- apply(ate_boot, 1, var)
+  
+  ### Confidence interval for the individual effects
+  conf.individual <- array(apply(ind_boot, 1, quantile, probs = c(0.025, 0.975)),
+                           dim = c(2,length(unique(data$ID)), length(unique(data[post, "Time"]))))
+  dimnames(conf.individual)[[3]] <- unique(data[post, "Time"])
+  dimnames(conf.individual)[[1]] <- c("Lower", "Upper")
+  
+  ### Adjusting for bias and/or skewness (if 'type' is "bc classic", "bc block")
+  if(type %in% c("bc classic", "bc block")){
+    
+    # Bias correction for ATE
+    z0 <- mapply(x = apply(ate_boot, 1, as.list), y = ate, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
+    lower <- pnorm(2*z0 + qnorm(alpha/2))
+    upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
+    conf.ate <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ate_boot, 1, as.list),
+                       FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    # conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper)) # old
+
+    # Bias correction for the individual effects
+    z0 <- mapply(x = apply(ind_boot, 1, as.list), y = ind.eff[,-1], FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
+    lower <- pnorm(2*z0 + qnorm(alpha/2))
+    upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
+    conf.individual <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ind_boot, 1, as.list),
+                       FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
+    conf.individual <- array(conf.individual, c(2, length(unique(data$ID)), length(unique(data[post, "Time"]))))
+    dimnames(conf.individual)[[3]] <- unique(data[post, "Time"])
+    dimnames(conf.individual)[[1]] <- c("Lower", "Upper")
+  }
+
+  if(type == "bca"){ # RICONTROLLARE
+
+    counts <- t(apply(ii, 1, FUN = function(x)(table(c(x, pre))-1)))
+    Blist <- mapply(x = c(1,2,3), y = ate, FUN = function(x,y){
+             list(Y = counts, tt = ate_boot[x, ], t0 = y)}, SIMPLIFY = FALSE)
+    out2 <- mapply(B = Blist, FUN = bcajack2, MoreArgs = list(alpha = alpha), SIMPLIFY = FALSE)
+    conf.ate <- sapply(out2, FUN = function(x)(x$lims[c(1,3), "bca"]))
+    # Blist <- list(Y = counts, tt = colMeans(ate_boot), t0 = ate) # old
+    # out2 <- bcajack2(B = Blist, alpha = alpha) # old
+    # conf.ate <- out2$lims[c(1,3),"bca"] # old
+
+  }
+
+
+  # Returning results
+  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual))
+  # return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ], conf.individual = conf.individual))
+}
+
+#' Bootstrap inference for CATE
+#'
+#' Internal function, used within the MLCM routine for the estimation of CATE
+#' standard errors and 95% confidence intervals in each terminal node of the tree.
+#' It works by resampling the observations at each final node of the tree.
+#' Note that the observations are the estimated individual
+#' causal effects (computed by comparing the observed data with the ML predictions).
+#' Our estimand of interest is the average of the individual effects, so at each bootstrap
+#' iteration we average the individual effects, obtaining a bootstrap distribution for the ATE
+#' (which is in fact a CATE as we do that in each terminal node, i.e., conditionally on covariates).
+#'
+#' @param effect Numeric vector of estimated individual causal effects.
+#' @param cate Object of class \code{rpart}, the estimated regression-tree-based CATE.
+#' @param nboot Number of bootstrap replications.
+#'
+#' @return A matrix containing the following information: estimated CATE within
+#' each node, estimated variance and confidence interval (upper and lower bound)
+#' estimated by bootstrap. Each column corresponds to a terminal node of the tree.
+
+boot_cate <- function(effect, cate, nboot, alpha){
+
+  ### Param checks
+  if(!is.numeric(effect)) stop("effect must be a numeric vector")
+  if(class(cate) != "rpart") stop ("cate must be an 'rpart' object")
+  if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
+  
+  ### Bootstrapping
+  terminal.nodes <- cate$where
+  x <- unique(terminal.nodes)
+  node.inf <- mapply(x, FUN = function(x){y <- effect[which(terminal.nodes == x)];
+  boot.dist <- matrix(sample(y, size = nboot*length(y), replace = TRUE),
+                      nrow = nboot, ncol = length(y));
+  mean.cate <- rowMeans(boot.dist);
+  var.cate <- var(mean.cate);
+  conf.cate <- quantile(mean.cate, probs = c(alpha/2, 1 - alpha/2));
+  c(cate = mean(y), var.cate = var.cate, cate.lower = conf.cate[1], cate.upper = conf.cate[2])},
+  SIMPLIFY = TRUE)
+  colnames(node.inf) <- paste0("Node_", x)
+  return(node.inf)
+
+}
+
+
 #' ATE estimation
 #'
 #' Internal function, used within the MLCM and bootstrap routines for the estimation of ATE
@@ -320,10 +502,6 @@ as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
 #' \item ate: vector of estimated ATEs for each post-intervention period
 #' }
 #'
-#' @noRd
-#' @import caret
-#' @importFrom stats rnorm
-#' @importFrom stats sd
 
 ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 
@@ -351,7 +529,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
     ### Step 3. Counterfactual prediction, if the option 'ran.err' is active, a random error is added
     ###         to the prediction (recommended only during bootstrap to get reliable estimates of ATEs variance)
     if(ran.err){
-
+      
       eps <- data[pre, "Y"] - predict.train(fit)
       error <- rnorm(n = nrow(data[post,]), mean = mean(eps), sd = sd(eps))
       pred <- predict.train(fit, newdata = data[post, ]) + error
@@ -386,7 +564,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
       }
     }
   }
-
+   
   ### Step 3. Returning the matrix of individual effects and the ATE
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   ind_effects <- ind_effects[order(ind_effects[, "ID"], decreasing = F), ]
@@ -412,10 +590,10 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 #'       each containing the estimated CATE, its variance and confidence interval
 #'       for the terminal nodes.
 #' }
-#' @noRd
+#'
 
 cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
-
+  
   ### Step 1. Selecting post-intervention times
   post <- which(data$Time >= int_date)
   postimes <- data$Time[post]
@@ -436,7 +614,7 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 
   ### Step 3. CATE estimation & inference
   cate <- lapply(unique(postimes), FUN = function(x){
-    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data$ID)))})
+    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.1*length(unique(data$ID)))})
   mat <- data.frame(postimes, c(t(ind_effects[,-1])))
   cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
     boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
@@ -444,32 +622,6 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 
   ### Step 4. Returning estimated CATE
   return(list(cate = cate, cate.inf = cate.inf))
-}
-
-
-#' Generation of lagged variables
-#'
-#' Internal function, used to generate lags of the dependent variable.
-#'  This function shifts \code{x} backward of the given number of \code{lag}.
-#' If \code{lag = 1} (the default), the function shifts the variable of 1 step.
-#' For example, if \code{x[t]} is a time series, \code{lag = 1} generates \code{x[t-1]};
-#' \code{lag = 2} generates \code{x[t-2]} and so on.
-#'
-#' @param x Numeric, variable to lag
-#' @param lag Numeric, lag of \code{x} to generate, defaulting to 1.See Details.
-#'
-#' @return
-#' A vector of the lagged variable having the same length as \code{x] (note that
-#' there will be as many initial NAs as the number of \code{lag}.)
-#'
-#' @noRd
-#' @importFrom utils head
-
-.true_lag <- function(x, lag = 1){
-
-  x_lag <- c(rep(NA, times = lag), head(x, n = length(x)-lag))
-  return(x_lag)
-
 }
 
 
@@ -485,7 +637,6 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 #' @param id Character, variable in 'data' containing unique identifiers
 #' @param timevar Character, variable in 'data' containing times
 #'
-#' @noRd
 
 check_xcate <- function(x.cate, data, id, timevar){
 
