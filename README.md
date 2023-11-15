@@ -8,41 +8,20 @@
 
 ## What is MachineControl?
 
-MachineControl is an R package that can be used to estimate both the
-average and the heterogeneous causal effect of a simultaneous policy or shock (also called
-‘treatment’ or ‘intervention’) that affects, directly or indirectly, all the units
-of a panel dataset. This is a challenging causal inference setting as
-there are no unaffected units that can be employed to build a valid comparison group. In such settings, traditional methods such as
-Difference-in-Differences (DiD) or the Synthetic Control Method (SCM) cannot be applied, as they
-require control units to estimate the counterfactual outcome in the
-absence of the treatment.
+MachineControl is an R package that enables the estimation of both the average and heterogeneous causal effects of a simultaneous policy or shock (also referred to as ‘treatment’ or ‘intervention’) that directly or indirectly impacts all the units in a panel dataset. This presents a challenging causal inference scenario, as there are no unaffected units available for constructing a valid comparison group. In such situations, traditional methods like Difference-in-Differences (DiD) or the Synthetic Control Method (SCM) cannot be applied, as they rely on control units to estimate the counterfactual outcome.
 
 ## How does the package work?
 
-MachineControl works by using a pool of Machine Learning (ML) algorithms to
-learn the temporal dynamics and the associations between the units and
-the covariates in the pre-intervention panel dataset. It involves a
-horse-race between different ML methods: all the ML
+MachineControl operates by harnessing Machine Learning (ML) algorithms to understand the temporal dynamics and associations between the units and covariates in the pre-intervention panel dataset. The process involves a horse-race competition among various ML methods: all the ML
 methods selected by the user are tuned via a panel cross-validation
-procedure in order to give the best predictions of the outcome before
-the intervention. Then, the procedure selects the best-performing method
-based on a given performance metric, such as the Mean Squared Error
-(MSE).
+procedure in order to track as best as possible the pre-intervention trend of the outcome variable. Then, the procedure selects the best-performing algorithm
+based on a given performance metric, such as the Root Mean Squared Error
+(RMSE).
 
-Once the best-performing model is selected, it is used to forecast the counterfactual outcome for each unit, i.e., what
-would have happened in the post-intervention period absent the treatment. The difference between the observed
-outcome and the counterfactual outcome is the estimated Average
-Treatment Effect (ATE) of the policy. MachineControl can also be used to
-estimate the heterogeneous effect of the treatment. For example, while
-estimating the impact of COVID-19 on mortality, regions having a lower
-number of hospital beds per 1000 people or with a higher proportion of
-elderly population could be more affected than others. This is usually
-referred as Conditional Average Treatment Effect (CATE), as we are
-interested in averaging the effects on subsets of units sharing similar
-characteristics.
+Once the best-performing model is selected, it is used to forecast the counterfactual outcome for each unit—essentially, what would have occurred in the post-intervention period had the treatment been absent. The unit-level difference between the observed outcome and the counterfactual outcome represents the estimated individual treatment effect, which can then be aggregated to get the Average Treatment Effect (ATE).
+MachineControl can also be employed to learn about treatment effect heterogeneity by estimating data-driven Conditional Average Treatment Effects (CATEs). For instance, when assessing the impact of COVID-19 on mortality, regions with fewer hospital beds per 1000 people or a higher proportion of elderly population may experience more pronounced effects than others.
 
-Inference on the estimated effects (ATE and CATE) is performed by
-block-bootstrapping approach.
+Inference on the estimated effects (ATE and CATE) is performed via a block-bootstrapping approach.
 
 ## Installation
 
