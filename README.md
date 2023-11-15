@@ -49,4 +49,4 @@ library(MachineControl)
 ## Further readings
 
 Cerqua A., & Letta M., & Menchetti F. The Machine
-Learning Control Method for counterfactual forecasting. Available as SRRN Working Paper at: http://dx.doi.org/10.2139/ssrn.4315389
+Learning Control Method for Counterfactual Forecasting. Available as SRRN Working Paper at: http://dx.doi.org/10.2139/ssrn.4315389
