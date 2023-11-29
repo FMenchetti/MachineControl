@@ -46,6 +46,10 @@ library(MachineControl)
 ```
 -->
 
+## Tutorial
+
+Please check the following Replication Notebook for a tutorial of the package based a replication of the empirical application illustrated in Cerqua et al. (2023): https://marclet.github.io/MLCM-Replication-Notebook/
+
 ## Further readings
 
 Cerqua A., & Letta M., & Menchetti F. 2023. The Machine
