@@ -48,7 +48,7 @@ library(MachineControl)
 
 ## Tutorial
 
-Please check the following Replication Notebook for a tutorial of the package based a replication of the empirical application illustrated in Cerqua et al. (2023): https://marclet.github.io/MLCM-Replication-Notebook/
+Please check the following Replication Notebook for a tutorial of the package based on a replication of the key findings of the empirical application illustrated in Cerqua et al. (2023): https://marclet.github.io/MLCM-Replication-Notebook/
 
 ## Further readings
 
