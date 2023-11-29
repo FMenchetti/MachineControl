@@ -19,7 +19,7 @@ based on a given performance metric, such as the Root Mean Squared Error
 (RMSE).
 
 Once the best-performing model is selected, it is used to forecast the counterfactual outcome for each unit—essentially, what would have occurred in the post-intervention period had the treatment been absent. The unit-level difference between the observed outcome and the counterfactual outcome represents the estimated individual treatment effect, which can then be aggregated to get the Average Treatment Effect (ATE).
-MachineControl can also be employed to learn about treatment effect heterogeneity by estimating data-driven Conditional Average Treatment Effects (CATEs). For instance, when assessing the impact of COVID-19 on mortality, regions with fewer hospital beds per 1000 people or a higher proportion of elderly population may experience more pronounced effects than others.
+MachineControl can also be employed to learn about treatment effect heterogeneity by estimating data-driven Conditional Average Treatment Effects (CATEs). 
 
 Inference on the estimated effects (ATE and CATE) is conducted using a block-bootstrapping approach.
 
