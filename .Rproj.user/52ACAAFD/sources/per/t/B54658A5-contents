@@ -149,7 +149,7 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
 
   # Returning results
-  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual))
+  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual, ate_boot = ate_boot))
   # return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ], conf.individual = conf.individual))
 }
 #' Bootstrap inference for CATE

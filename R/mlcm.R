@@ -88,7 +88,8 @@
 #'   \item \code{ate}: the estimated ATE
 #'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
 #'   by the user in 'inf_type'
-#'   \item \code{conf.ate}: a (1-\code{alpha})% bootstrap confidence interval
+#'   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
+#'   \item \code{ate.boot}: the bootstrap distribution for the ATE
 #'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
 #'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
 #'   estimated by bootstrap
@@ -229,7 +230,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
 
   ### Saving results
-  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate,
+  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
               ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
 }

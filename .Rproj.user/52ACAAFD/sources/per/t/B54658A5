@@ -3,7 +3,7 @@
     "path": "~/GitHub/MLCM/R/bootstrap.R",
     "project_path": "R/bootstrap.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "4090180596",
     "contents": "",
     "dirty": false,
     "created": 1690033477119.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled2",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "174,0",
-        "scrollLine": "171"
+        "cursorPosition": "151,121",
+        "scrollLine": "138"
     },
     "folds": "",
-    "lastKnownWriteTime": 1697387412,
+    "lastKnownWriteTime": 1704472276,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1697387412003,
+    "last_content_update": 1704472276106,
     "read_only": false,
     "read_only_alternatives": []
 }
