@@ -199,3 +199,79 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
 }
 
+#' Panel Cross Validation Staggered
+#'
+#' Panel Cross Validation in a staggered adoption setting, i.e., when there are groups of units
+#' treated at different times.
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date A vector containing the dates of the intervention, treatment, policy introduction or shock.
+#' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
+#' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
+#'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
+#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
+#' @return For each intervention group, a list of class \code{train} with the best-performing ML method.
+#' @details
+#' The function works in the same way as \code{PanelCrossValidation} as it repeats independently the PCV procedure for each group of unit defined by
+#' the date of their treatment. Note that the \code{int_date} argument must be a vector whose length must match the number of rows in \code{data}.
+#' The function also assumes that the ordering is the one provided by the user. For example, if the first unit becomes treated in 2017 and it is observed for
+#' 5 periods (including pre- and post-intervention) the first 5 observations in \code{int_date} should be all equal to 2017.
+
+#' @export
+#' @import caret
+#' @importFrom rpart rpart
+#' @importFrom bcaboot bcajack2
+#' @importFrom CAST CreateSpacetimeFolds
+#' @importFrom gbm gbm
+#' @importFrom elasticnet enet
+#' @importFrom pls plsr
+#' @importFrom randomForest randomForest
+#' @importFrom utils capture.output
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
+#'
+#' @examples
+#'
+#' ### Example 1. Using the default ML methods in a staggered setting
+#'
+#' # Assume the following intervention dates
+#' int_date_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+#' int_date <- rep(int_date_i, each = unique(newdata$Time))
+#' head(data.frame(int_date), data)
+#'
+#' # Organizing the dataset
+#' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))], y.lag = 1)
+#'
+#' # Panel Cross Validation in a staggered setting
+#' pcv <- PanelCrossValidationMulti(data = newdata, int_date = int_date)
+#'
+PanelCrossValidationMulti <- function(data, int_date, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+
+  ### Parameter checks
+  if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
+  if(length(int_date) != nrow(data)) stop("length(int_date) != nrow(data)")
+  if(any(!(unique(int_date) %in% data[, "Time"]))) stop("all dates in 'int_date' must be contained in timevar")
+  if(any(sapply(unique(int_date), FUN = function(x)(sum(unique(newdata[, "Time"]) < x) - pcv_block < 1)))) stop("Panel cross validation must be performed in at least one time period")
+  if(pcv_block <= 0) stop("The number of 'pcv_block' time periods for panel cross validation must be at least 1")
+  if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
+  if(!is.null(ML_methods)){if(!is.list(ML_methods)) stop("ML_methods must be a list")}
+  if(is.list(ML_methods)){
+    if(any(sapply(ML_methods, FUN = function(x)(!all(c("method", "tuneGrid") %in% names(x)))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
+
+  ### Applying PCV for each intervention group
+  res <- mapply(unique(int_date), FUN = function(x){ datax <- data[int_date == x,];
+                                                     PanelCrossValidation(data = datax, int_date = x, pcv_block = pcv_block, metric = metric,
+                                                                          trControl = trControl, ML_methods = ML_methods)}, SIMPLIFY = FALSE)
+  ### Returning results
+  names(res) <- paste0("int_", unique(int_date))
+  return(res)
+
+}
