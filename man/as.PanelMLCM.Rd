@@ -4,7 +4,7 @@
 \alias{as.PanelMLCM}
 \title{Structuring the panel dataset}
 \usage{
-as.PanelMLCM(y, x, timevar, id, y.lag = 0)
+as.PanelMLCM(y, x, timevar, id, int_date = NULL, y.lag = 0)
 }
 \arguments{
 \item{y}{Numeric, the outcome variable.}
@@ -15,6 +15,8 @@ as.PanelMLCM(y, x, timevar, id, y.lag = 0)
 a date object}
 
 \item{id}{Numeric, the column containing the ID's.}
+
+\item{int_date}{INSERT COLUMN TIME AND EXPLANATION (Optional)}
 
 \item{y.lag}{Optional, number of lags of the dependent variable to include in the model.}
 }

@@ -6,7 +6,6 @@
 \usage{
 PanelCrossValidationMulti(
   data,
-  int_date,
   pcv_block = 1,
   metric = "RMSE",
   trControl = NULL,
@@ -15,8 +14,6 @@ PanelCrossValidationMulti(
 }
 \arguments{
 \item{data}{A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.}
-
-\item{int_date}{A vector containing the dates of the intervention, treatment, policy introduction or shock.}
 
 \item{pcv_block}{Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.}
 
@@ -38,24 +35,25 @@ treated at different times.
 }
 \details{
 The function works in the same way as \code{PanelCrossValidation} as it repeats independently the PCV procedure for each group of unit defined by
-the date of their treatment. Note that the \code{int_date} argument must be a vector whose length must match the number of rows in \code{data}.
-The function also assumes that the ordering is the one provided by the user. For example, if the first unit becomes treated in 2017 and it is observed for
-5 periods (including pre- and post-intervention) the first 5 observations in \code{int_date} should be all equal to 2017.
+their treatment date. Note that the \code{int_date} argument must be a column of \code{data}.
 }
 \examples{
 
 ### Example 1. Using the default ML methods in a staggered setting
 
 # Assume the following intervention dates
-int_date_i <- c(rep(2019, times = 60), rep(2020, times = 40))
-int_date <- rep(int_date_i, each = unique(newdata$Time))
-head(data.frame(int_date), data)
+int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+int_year <- rep(int_year_i, each = length(unique(data$year)))
 
-# Organizing the dataset
-newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
-                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))], y.lag = 1)
+# Define data2
+data2 <- data.frame(int_year, data)
+
+# Organizing the dataset with as.PanelMLCM
+newdata <- as.PanelMLCM(y = data2[, "Y"], timevar = data2[, "year"], id = data[, "ID"],
+                        int_date = data2[, "int_year"],
+                        x = data2[, !(names(data) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 1)
 
 # Panel Cross Validation in a staggered setting
-pcv <- PanelCrossValidationMulti(data = newdata, int_date = int_date)
+pcv <- PanelCrossValidationMulti(data = newdata)
 
 }

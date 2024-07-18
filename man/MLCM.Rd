@@ -26,7 +26,8 @@ MLCM(
 unique IDs, one column for the outcome variable and one or more columns for the covariates.}
 
 \item{int_date}{The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-By default, this is the first period that the causal effect should be computed for. See Details.}
+By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
+name of the column containing the dates of the interventions. See Details.}
 
 \item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
 
@@ -81,7 +82,9 @@ Average Treatment Effect (ATE) of the policy and its confidence interval estimat
 bootstrap. Details on the causal assumptions, the estimation process and inference
 can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
 suited when there are no control units available, but if there are control units these
-can be easily added as control series among the covariates.
+can be easily added as control series among the covariates. This function can also
+accomodate staggered adoption settings where groups of units are treated or shocked at
+different times.
 }
 \details{
 The panel \code{data} must at least include the response variable, a column of the time variable,
@@ -120,6 +123,12 @@ a Conditional Average Treatment Effect (CATE) as described in Cerqua A., Letta M
 and it is of interest when researchers suspect that the policy ('treatment' or 'intervention') has produced
 heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
 underlying assumptions see the paper cited above.
+
+This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
+different times. In this case, the \code{data} must include a column with the units' intervention times.
+The target causal estimand is a temporal average ATE estimated as follows: a counterfactual is forecasted for
+the units in each treatment group and the estimated temporal average ATEs are then averaged also across the groups.
+[INSERIRE FORMULA QUI]
 }
 \examples{
 

@@ -19,13 +19,16 @@
 #' bootstrap. Details on the causal assumptions, the estimation process and inference
 #' can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
 #' suited when there are no control units available, but if there are control units these
-#' can be easily added as control series among the covariates.
+#' can be easily added as control series among the covariates. This function can also
+#' accomodate staggered adoption settings where groups of units are treated or shocked at
+#' different times.
 #'
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
 #'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
 #' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-#'                    By default, this is the first period that the causal effect should be computed for. See Details.
+#'                    By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
+#'                    name of the column containing the dates of the interventions. See Details.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
@@ -79,6 +82,11 @@
 #' heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
 #' underlying assumptions see the paper cited above.
 #'
+#' This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
+#' different times. In this case, the \code{data} must include a column with the units' intervention times.
+#' The target causal estimand is a temporal average ATE estimated as follows: a counterfactual is forecasted for
+#' the units in each treatment group and the estimated temporal average ATEs are then averaged also across the groups.
+#' [INSERIRE FORMULA QUI]
 #'
 #' @return A list with the following components:
 #' \itemize{
@@ -141,48 +149,38 @@
 #' fit$cate.inf
 #'
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
-
+  browser()
   ### Parameter checks
-  if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
-  if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("Unspecified columns in 'matrix' or 'data.frame' data")
-  if(!(is.null(y) | class(y) == "character")) stop("y must be a character")
-  if(!(is.null(timevar) | class(timevar) == "character")) stop("timevar must be a character")
-  if(!(is.null(id) | class(id) == "character")) stop("id must be a character")
-  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")  # should be integer
-  if(!is.null(y)){if(!y %in% colnames(data)) stop (paste("there is no column called", y, "in 'data'"))}
-  if(!is.null(timevar)){if(!timevar %in% colnames(data)) stop (paste("there is no column called", timevar, "in 'data'"))}
-  if(!is.null(id)){if(!id %in% colnames(data)) stop (paste("there is no column called", id, "in 'data'"))}
-  if(!any(class(int_date) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer"))) stop("int_date must be integer, numeric or Date")
-  if(is.null(timevar)){if(!int_date %in% data[, "Time"]) stop ("int_date must be contained in the 'Time' column")}
-  if(!is.null(timevar)){if(!int_date %in% data[, timevar]) stop ("int_date must be contained in timevar")}
-  if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
-  if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
-  if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
-  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-  if(CATE & !is.null(x.cate)){
-
-    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
-
-    } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
+  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, PCV = PCV, CATE = CATE, x.cate = x.cate, alpha = alpha)
 
   ### Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
 
     data_panel <- data
 
-  } else {
+  } else if(!is.character(int_date)) {
 
     data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
                                x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag)
+
+  } else {
+
+    data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                               int_date = data[, int_date],
+                               x = data[, !(names(data) %in% c(y, id, timevar, int_date))], y.lag = y.lag)
 
   }
 
 
   ### Panel cross-validation
-  if(is.null(PCV)){
+  if(is.null(PCV) & !is.character(int_date)){
 
     best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
+
+  } else if (is.null(PCV) & is.character(int_date)) {
+
+    best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric),
+                   FUN = function(x)(x[["best"]]))
 
   } else {
 
@@ -246,6 +244,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 #' @param timevar  The column containing the time variable. It can be numeric, integer or
 #'                 a date object
 #' @param id Numeric, the column containing the ID's.
+#' @param int_date INSERT COLUMN TIME AND EXPLANATION (Optional)
 #' @param y.lag Optional, number of lags of the dependent variable to include in the model.
 #'
 #' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
@@ -266,7 +265,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 #' # Results
 #' head(newdata)
 
-as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
+as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0){
 
   # Parameter checks
   if(!(is.numeric(y) & length(y)>1)) stop("y must be a numeric vector of length greater than 1")
@@ -274,12 +273,23 @@ as.PanelMLCM <- function(y, x, timevar, id, y.lag = 0){
   if(NROW(x) != length(y)) stop("NROW(x) != length(y)")
   if(!any(class(timevar) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "integer", "numeric")) | length(timevar) != length(y)) stop("timevar must be a numeric vector or a 'Date' object of the same length as y")
   if(!(is.numeric(id) & length(id) == length(y))) stop("id must be a numeric vector of the same length as y")
-  if(length(unique(id))*length(unique(timevar)) != length(y)) warning("The panel is unbalanced")
+  if(!is.null(int_date) & length(unique(id))*length(unique(timevar)) != length(y)) warning("The panel is unbalanced")
+  if(!is.null(int_date) & length(int_date) != length(y)) stop("int_date must be NULL or, for staggered adoption, a vector of the same length as y ")
+  if(any(!(unique(int_date) %in% timevar))) stop("all dates in 'int_date' must be contained in timevar")
   if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")
   if(length(unique(timevar)) <= y.lag) stop("The number of selected lags is greater or equal to the number of times, resulting in an empty dataset")
 
+
   ### STEP 1. Structuring the panel dataset
-  panel <- data.frame(Time = timevar, ID = id, Y = y, x)
+  if(is.null(int_date)){
+
+    panel <- data.frame(Time = timevar, ID = id, Y = y, x)
+
+  } else {
+
+    panel <- data.frame(Time = timevar, ID = id, Y = y, int_date = int_date, x)
+
+  }
 
   ### STEP 2. Are there any past lags of 'y' to include?
   if(y.lag > 0){
@@ -392,6 +402,44 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   ind_effects <- ind_effects[order(ind_effects[, "ID"], decreasing = F), ]
   return(list(ind_effects = ind_effects, ate = colMeans(as.matrix(ind_effects[, -1]))))
+}
+
+#' ATE estimation in a staggered adoption setting
+#'
+#' Internal function, used within the MLCM and bootstrap routines for the estimation of ATE
+#' in a staggered adoption setting
+#'
+#'
+#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param int_date A vector containing the dates of the intervention, treatment, policy introduction or shock.
+#' @param best List of objects of class \code{train}, the best-performing ML method as selected
+#'             by panel cross validation for each treatment group.
+#' @param metric Character, the performance metric that should be used to select the optimal model.
+#' @param ran.err Logical, whether to include a random error to the predicted/counterfactual
+#'                post-intervention observations. It is set to \code{FALSE} when the objective is ATE
+#'                estimation. It is set to \code{TRUE} when the objective is estimating bootstrap standard errors.
+#'
+#' @return A list with the following components:
+#' \itemize{
+#' \item ind_effects: matrix of estimated unit-level causal effects
+#' \item ate: vector of estimated ATEs for each post-intervention period
+#' }
+#'
+#' @noRd
+#' @import caret
+#' @importFrom stats rnorm
+#' @importFrom stats sd
+
+ate_est_multi <- function(data, int_date, best, metric, ran.err, y.lag){
+  browser()
+  ### Step 1. m-applying 'ate_est' to each intervention group
+  nint <- length(unique(int_date))
+  prova <- mapply(x = 1:nint, y = best, FUN = function(x,y){ii_date <- unique(int_date)[x]
+                                        datax <- data[data$int_date == ii_date,]
+                                        ate_est(data = datax, int_date = ii_date, best = y, metric = metric, ran.err = ran.err, y.lag = y.lag)})
+
+  ### Step 2. Global ATE
+
 }
 
 #' CATE estimation
@@ -511,4 +559,52 @@ check_xcate <- function(x.cate, data, id, timevar){
   }
 
   return(x.cate)
+}
+
+check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, PCV, CATE, x.cate, alpha){
+
+  ### Parameter checks
+  # Checking class of 'data'
+  if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
+  if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("y or id or timevar are missing with no default")
+
+  # Checking class of 'y', 'id' and 'timevar'
+  ck <- mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | class(par) == "character")))
+  if(any(ck)) stop(paste(c("y", "timevar", "id")[which(ck)], "must be 'character' "))
+  ck <- mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | par %in% colnames(data))))
+  if(any(ck)) stop (paste("there is no column called", c(y, timevar, id)[which(ck)], "in 'data'"))
+
+  # Checking 'y.lag'
+  if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")  # should be integer
+
+  # Checking 'int_date'
+  if(!any(class(int_date) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer", "character"))) stop("int_date must be integer, numeric, date or character")
+
+  if (is.character(int_date)) {
+    time_col <- if (is.null(timevar)) "Time" else timevar
+    if (any(!(unique(data[, int_date]) %in% data[, time_col]))) {
+      stop(paste("all dates in 'int_date' must be contained in the", time_col, "column"))
+    }
+  } else {
+    time_col <- if (is.null(timevar)) "Time" else timevar
+    if (!int_date %in% data[, time_col]) {
+      stop(paste("int_date must be contained in the", time_col, "column"))
+    }
+  }
+
+  # Checking inf_type, nboot, metric, PCV, alpha
+  if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
+  if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
+  if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
+  if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
+  if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
+
+  # Checking CATE
+  if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
+  if(CATE & !is.null(x.cate)){
+
+    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
+
+  } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
+
 }
