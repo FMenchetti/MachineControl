@@ -201,7 +201,16 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   # ))
 
   ### ATE & individual effects estimation
-  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  if(!is.character(int_date)){
+
+    effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+
+  } else {
+
+    effects <- ate_est_multi(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+
+  }
+
   ate <- effects$ate
   ind_effects <- effects$ind_effects
 
@@ -411,7 +420,6 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 #'
 #'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
-#' @param int_date A vector containing the dates of the intervention, treatment, policy introduction or shock.
 #' @param best List of objects of class \code{train}, the best-performing ML method as selected
 #'             by panel cross validation for each treatment group.
 #' @param metric Character, the performance metric that should be used to select the optimal model.
@@ -430,16 +438,19 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 #' @importFrom stats rnorm
 #' @importFrom stats sd
 
-ate_est_multi <- function(data, int_date, best, metric, ran.err, y.lag){
-  browser()
+ate_est_multi <- function(data, best, metric, ran.err, y.lag){
+
   ### Step 1. m-applying 'ate_est' to each intervention group
-  nint <- length(unique(int_date))
-  prova <- mapply(x = 1:nint, y = best, FUN = function(x,y){ii_date <- unique(int_date)[x]
-                                        datax <- data[data$int_date == ii_date,]
-                                        ate_est(data = datax, int_date = ii_date, best = y, metric = metric, ran.err = ran.err, y.lag = y.lag)})
+  nint <- unique(data$int_date)
+  ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data[data$int_date == x,]
+                                                          datax$int_date <- NULL
+                                                          ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = ran.err, y.lag = y.lag)}, SIMPLIFY = FALSE)
 
   ### Step 2. Global ATE
+  global_ate <- mean(sapply(ate_i, FUN = function(x)(mean(x$ate))))
 
+  ### Step 3. Returning results
+  return(global_ate = global_ate)
 }
 
 #' CATE estimation
