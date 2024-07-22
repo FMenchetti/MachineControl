@@ -14,7 +14,7 @@
 #' standard error and 95% confidence interval.
 #'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
-#' @param ind  int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
+#' @param int_date The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
 #' @param bestt Object of class \code{train}, the best-performing ML method as selected
 #'              by panel cross validation.
 #' @param type Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
@@ -24,6 +24,8 @@
 #' @param metric Character, the performance metric that should be used to select the optimal model.
 #'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param ate Numeric, the estimated ATE in the sample.
+#' @param ind.eff Matrix of estimated individual effects. Only needed when \code{"type"} is \code{bc classic},
+#'                \code{bc block} or \code{bca}
 #'
 #' @return A list with the following components:
 #' \itemize{
@@ -44,16 +46,15 @@
 #' @importFrom stats sd
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate = NULL, ind.eff = NULL){
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate, ind.eff = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
-  # if(length(ind)<1) stop("A zero-length pre-intervention period was selected, please check your data and your definition of 'post_period'")
   if(!any(type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
   if(!is.numeric(ate)) stop ("ATE must be numeric")
-
+  if(is.null(ind.eff) & any(type %in% c("bc classic", "bc block", "bca"))) stop (" 'ind.eff' cannot be NULL when 'type' is 'bc classic', 'bc block' or 'bca' ")
 
   ### Setting pre/post intervention periods
   pre <- which(data[, "Time"] < int_date)
@@ -66,10 +67,9 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
 
     # Step 2. Estimating individual effects and ATE for each bootstrap iteration
-    # ate_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
     eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
     ate_boot <- sapply(eff_boot, function(x)(x$ate))
-    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects[,-1]))
 
   }
 
@@ -87,18 +87,10 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
     }, simplify = FALSE)
 
-    #ii1 <- mapply(ind1, ii0, FUN = function(ind1, ii0){
-
-    #  unlist(sapply(ind1, function(y)(setdiff(which(data[, "ID"] %in% y), ii0)), simplify = FALSE))
-
-    #}, SIMPLIFY = FALSE)
-
     # Step 3. Estimating individual effects and ATE for each bootstrap iteration
-    #ate_boot <- mapply(x = ii0, y = ii1, function(x, y){ate_est(data = data[c(x, y),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
-    # ate_boot <- sapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)$ate})
     eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
     ate_boot <- sapply(eff_boot, function(x)(x$ate))
-    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects))
+    ind_boot <- sapply(eff_boot, function(x)(x$ind_effects[,-1]))
 
   }
 
@@ -122,7 +114,6 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     upper <- pnorm(2*z0 + qnorm(1 - alpha/2))
     conf.ate <- mapply(x = as.list(lower), y = as.list(upper), z = apply(ate_boot, 1, as.list),
                        FUN = function(x,y,z){quantile(unlist(z), probs = c(x,y))}, SIMPLIFY = TRUE)
-    # conf.ate <- quantile(mean_ate_boot, probs = c(lower, upper)) # old
 
     # Bias correction for the individual effects
     z0 <- mapply(x = apply(ind_boot, 1, as.list), y = ind.eff, FUN = function(x,y)(qnorm(sum(x < y)/nboot)), SIMPLIFY = TRUE)
@@ -149,9 +140,10 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 
 
   # Returning results
-  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual, ate_boot = ate_boot))
-  # return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, ate.lower = conf.ate[1, ], ate.upper = conf.ate[2, ], conf.individual = conf.individual))
+  return(list(type = type, conf.ate = conf.ate, var.ate = var.ate, conf.individual = conf.individual, ate_boot = ate_boot, ind_boot = ind_boot))
+
 }
+
 #' Bootstrap inference for CATE
 #'
 #' Internal function, used within the MLCM routine for the estimation of CATE
@@ -197,3 +189,4 @@ boot_cate <- function(effect, cate, nboot, alpha){
   return(node.inf)
 
 }
+

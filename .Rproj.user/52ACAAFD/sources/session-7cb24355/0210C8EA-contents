@@ -153,92 +153,169 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
   ### Parameter checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, PCV = PCV, CATE = CATE, x.cate = x.cate, alpha = alpha)
 
-  ### Structuring the panel dataset in the required format
-  if("PanelMLCM" %in% class(data)){
+  ### Staggered vs non-staggered setting
+  if(is.character(int_date)){
 
-    data_panel <- data
+    ## 1. Structuring the panel dataset in the required format
+    if("PanelMLCM" %in% class(data)){
 
-  } else if(!is.character(int_date)) {
+      data_panel <- data
 
-    data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                               x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag)
+    } else {
+
+      data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                                 int_date = data[, int_date],
+                                 x = data[, !(names(data) %in% c(y, id, timevar, int_date))], y.lag = y.lag)
+    }
+
+    ## 2. Panel cross-validation in staggered settings
+    if(is.null(PCV)){
+
+      best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric),
+                     FUN = function(x)(x[["best"]]))
+
+    } else {
+
+      best <- PCV
+
+    }
+
+    ## 3. Global ATE & individual temporal avg effects estimation
+    #  3.1. m-applying 'ate_est' to each intervention group
+    nint <- unique(data_panel$int_date)
+    ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
+                                                            datax$int_date <- NULL
+                                                            ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
+    #  3.2. Global ATE & individual effects
+    global_ate <- mean(sapply(ate_i, FUN = function(x)(mean(x$ate))))
+    global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
+    data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
+    global_ind <- do.call("rbind", global_ind)
+    ta_ind_effects <- merge(global_ind, unique(data_panel[, c("ID", "int_date")]))
+
+    # effects <- ate_est_multi(data = data_panel, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+    # global_ate <- effects$global_ate
+    # ta_ind_effects <- effects$tempavg_ind_effects
+
+    ## 4. Global ATE & individual temporal avg effects inference
+    #  4.1. m-applying 'boot_ate' to each intervention group
+    ind <- which(colnames(ta_ind_effects) == "int_date")
+    boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
+                                                               datax$int_date <- NULL
+                                                               boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
+                                                               ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag)}, SIMPLIFY = FALSE)
+
+    #  4.2. Confidence interval for global ATE & individual effects
+    global_ate_boot <- rowMeans(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))))
+    conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
+    tempavg_ind <- lapply(boot_inf, FUN = function(x){n <- NROW(x$ate_boot)
+                                                      asvec <- unlist(asplit(x$ind_boot, 1))
+                                                      asarr <- array(asvec, dim = c(nboot, nrow(x$ind_boot)/n ,n))
+                                                      apply(asarr, c(1,2), mean)})
+    conf.tempavg.ind <- lapply(tempavg_ind, FUN = function(x)(apply(x, 2, quantile, probs = c(alpha/2, 1- alpha/2))))
+    conf.tempavg.ind <- t(do.call("cbind", conf.tempavg.ind))
+    conf.tempavg.ind <- data.frame(do.call("rbind", sapply(nint, FUN = function(x)(unique(data_panel[data_panel$int_date == x, c("ID", "int_date")])), simplify = FALSE)),
+                                   conf.tempavg.ind)
+
+    ## 5. Saving results
+    return(list(best_method = best, fit = best, ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
+                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind))
 
   } else {
 
-    data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                               int_date = data[, int_date],
-                               x = data[, !(names(data) %in% c(y, id, timevar, int_date))], y.lag = y.lag)
+    ## 1. Structuring the panel dataset in the required format
+    if("PanelMLCM" %in% class(data)){
+
+      data_panel <- data
+
+    } else {
+
+      data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                                 x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag)
+
+    }
+
+    ## 2. Panel cross-validation
+    if(is.null(PCV)){
+
+      best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
+
+    } else {
+
+      best <- PCV
+
+    }
+
+    ## 3. ATE & individual effects estimation
+    effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+    ate <- effects$ate
+    ind_effects <- effects$ind_effects
+
+    ## 4. ATE & individual effects inference
+    invisible(capture.output(
+
+      boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
+
+    ))
+
+    ## 5. CATE estimation & inference
+    if(CATE){
+
+      cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
+      cate <- cate_effects$cate
+      cate.inf <- cate_effects$cate.inf
+
+    } else {
+
+      cate <- NULL
+      cate.inf <- NULL
+    }
+
+    ## 6. Saving results
+    return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
+                ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
 
   }
 
 
-  ### Panel cross-validation
-  if(is.null(PCV) & !is.character(int_date)){
 
-    best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
-
-  } else if (is.null(PCV) & is.character(int_date)) {
-
-    best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric),
-                   FUN = function(x)(x[["best"]]))
-
-  } else {
-
-    best <- PCV
-
-  }
-
-  ### Fit the best (optimized) ML algorithm on all pre-intervention data and make predictions in the post-intervention period
-  # ind <- which(data_panel[, "Time"] < int_date)
-  # set.seed(1)
-  # invisible(capture.output(
-  #  fit <- train(Y ~ .,
-  #               data = data_panel[ind, !(names(data_panel) %in% c("ID", "Time"))],
-  #               method = best$method,
-  #               metric = metric,
-  #               trControl = trainControl(method="none"),
-  #               tuneGrid = best$bestTune)
-  # ))
 
   ### ATE & individual effects estimation
-  if(!is.character(int_date)){
-
-    effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-
-  } else {
-
-    effects <- ate_est_multi(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-
-  }
-
-  ate <- effects$ate
-  ind_effects <- effects$ind_effects
-
-  ### ATE & individual effects inference
-  invisible(capture.output(
-
-    boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
-                         alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
-
-  ))
-
-  ### CATE estimation & inference
-  if(CATE){
-
-    cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
-    cate <- cate_effects$cate
-    cate.inf <- cate_effects$cate.inf
-
-  } else {
-
-    cate <- NULL
-    cate.inf <- NULL
-  }
-
-
-  ### Saving results
-  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
-              ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
+  # if(!is.character(int_date)){
+  #
+  #   effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  #
+  # } else {
+  #
+  #   effects <- ate_est_multi(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  #
+  # }
+  #
+  # ate <- effects$ate
+  # ind_effects <- effects$ind_effects
+  #
+  # ### ATE & individual effects inference
+  # invisible(capture.output(
+  #
+  #   boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+  #                        alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
+  #
+  # ))
+  #
+  # ### CATE estimation & inference
+  # if(CATE){
+  #
+  #   cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
+  #   cate <- cate_effects$cate
+  #   cate.inf <- cate_effects$cate.inf
+  #
+  # } else {
+  #
+  #   cate <- NULL
+  #   cate.inf <- NULL
+  # }
+  #
 
 }
 
@@ -413,46 +490,6 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   return(list(ind_effects = ind_effects, ate = colMeans(as.matrix(ind_effects[, -1]))))
 }
 
-#' ATE estimation in a staggered adoption setting
-#'
-#' Internal function, used within the MLCM and bootstrap routines for the estimation of ATE
-#' in a staggered adoption setting
-#'
-#'
-#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
-#' @param best List of objects of class \code{train}, the best-performing ML method as selected
-#'             by panel cross validation for each treatment group.
-#' @param metric Character, the performance metric that should be used to select the optimal model.
-#' @param ran.err Logical, whether to include a random error to the predicted/counterfactual
-#'                post-intervention observations. It is set to \code{FALSE} when the objective is ATE
-#'                estimation. It is set to \code{TRUE} when the objective is estimating bootstrap standard errors.
-#'
-#' @return A list with the following components:
-#' \itemize{
-#' \item ind_effects: matrix of estimated unit-level causal effects
-#' \item ate: vector of estimated ATEs for each post-intervention period
-#' }
-#'
-#' @noRd
-#' @import caret
-#' @importFrom stats rnorm
-#' @importFrom stats sd
-
-ate_est_multi <- function(data, best, metric, ran.err, y.lag){
-
-  ### Step 1. m-applying 'ate_est' to each intervention group
-  nint <- unique(data$int_date)
-  ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data[data$int_date == x,]
-                                                          datax$int_date <- NULL
-                                                          ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = ran.err, y.lag = y.lag)}, SIMPLIFY = FALSE)
-
-  ### Step 2. Global ATE
-  global_ate <- mean(sapply(ate_i, FUN = function(x)(mean(x$ate))))
-
-  ### Step 3. Returning results
-  return(global_ate = global_ate)
-}
-
 #' CATE estimation
 #'
 #' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
@@ -519,7 +556,7 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 #' @param lag Numeric, lag of \code{x} to generate, defaulting to 1.See Details.
 #'
 #' @return
-#' A vector of the lagged variable having the same length as \code{x] (note that
+#' A vector of the lagged variable having the same length as \code{x} (note that
 #' there will be as many initial NAs as the number of \code{lag}.)
 #'
 #' @noRd
