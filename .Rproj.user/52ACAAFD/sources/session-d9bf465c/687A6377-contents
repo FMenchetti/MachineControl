@@ -24,8 +24,12 @@
 #' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
 #'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
-#' @return A list of class \code{train} with the best-performing ML method.
-#'
+#' @return A list containing the following objects:
+#' \itemize{
+#'   \item \code{best}: the best-performing ML algorithm
+#'   \item \code{best.metric}: the value of \code{metric} for the best-performing ML algorithm
+#'   \item \code{all_methods}: detailed results for all the methods tried during the PCV routine
+#'  }
 #' @details
 #' To speed up computational time in case of longer time series, users can increase the \code{pcv_block} parameter: \code{pcv_block = 1}
 #' (the default) indicates to use the observations in the first time period as the first training sample and to test on the next period.
@@ -89,7 +93,7 @@
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
 #'                             ML_methods = list(enet, linreg))
 #'
-#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv$best,
+#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
 #'                nboot = 10, CATE = FALSE)
 #'
 #' causal$ate
@@ -211,8 +215,9 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
 #' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
-#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
-#' @return For each intervention group, a list of class \code{train} with the best-performing ML method.
+#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.
+#' @return For each intervention group, a list containing the best-performing ML method, the value of the given \code{metric} and the detailed results
+#'         of all methods tried during the PCV routine (see also \code{PanelCrossValidation}).
 #' @details
 #' The function works in the same way as \code{PanelCrossValidation} as it repeats independently the PCV procedure for each group of unit defined by
 #' their treatment date. Note that the \code{int_date} argument must be a column of \code{data}.
@@ -242,19 +247,22 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
 #' int_year <- rep(int_year_i, each = length(unique(data$year)))
 #'
-#' # Define data2
-#' data2 <- data.frame(int_year, data)
+#' # Define data_stag
+#' data_stag <- data.frame(int_year, data)
 #'
 #' # Organizing the dataset with as.PanelMLCM
-#' newdata <- as.PanelMLCM(y = data2[, "Y"], timevar = data2[, "year"], id = data[, "ID"],
-#'                         int_date = data2[, "int_year"],
-#'                         x = data2[, !(names(data) %in% c("Y", "ID", "year", "int_year"))], y.lag = 1)
+#' newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
+#'                         int_date = data_stag[, "int_year"],
+#'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))], y.lag = 2)
 #'
 #' # Panel Cross Validation in a staggered setting
 #' pcv <- PanelCrossValidationMulti(data = newdata)
 #'
+#' # ATE estimation
+#' causal <- MLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv)
+#'
 PanelCrossValidationMulti <- function(data, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
-  # browser()
+
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(any(sapply(unique(data[, "int_date"]), FUN = function(x)(sum(unique(data[, "Time"]) < x) - pcv_block < 1)))) stop("Panel cross validation must be performed in at least one time period")

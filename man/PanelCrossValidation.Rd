@@ -30,7 +30,12 @@ as a named list of two elements: a character defining the method name from all t
 and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'}
 }
 \value{
-A list of class \code{train} with the best-performing ML method.
+A list containing the following objects:
+\itemize{
+  \item \code{best}: the best-performing ML algorithm
+  \item \code{best.metric}: the value of \code{metric} for the best-performing ML algorithm
+  \item \code{all_methods}: detailed results for all the methods tried during the PCV routine
+ }
 }
 \description{
 This function implements the panel cross validation technique as described in
@@ -84,7 +89,7 @@ linreg <- list(method = "lm",
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg))
 
-causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv$best,
+causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
                nboot = 10, CATE = FALSE)
 
 causal$ate

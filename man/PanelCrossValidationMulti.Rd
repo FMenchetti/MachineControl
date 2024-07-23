@@ -24,10 +24,11 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
 \item{ML_methods}{Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
-and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'}
+and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.}
 }
 \value{
-For each intervention group, a list of class \code{train} with the best-performing ML method.
+For each intervention group, a list containing the best-performing ML method, the value of the given \code{metric} and the detailed results
+        of all methods tried during the PCV routine (see also \code{PanelCrossValidation}).
 }
 \description{
 Panel Cross Validation in a staggered adoption setting, i.e., when there are groups of units
@@ -45,15 +46,18 @@ their treatment date. Note that the \code{int_date} argument must be a column of
 int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
 int_year <- rep(int_year_i, each = length(unique(data$year)))
 
-# Define data2
-data2 <- data.frame(int_year, data)
+# Define data_stag
+data_stag <- data.frame(int_year, data)
 
 # Organizing the dataset with as.PanelMLCM
-newdata <- as.PanelMLCM(y = data2[, "Y"], timevar = data2[, "year"], id = data[, "ID"],
-                        int_date = data2[, "int_year"],
-                        x = data2[, !(names(data) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 1)
+newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
+                        int_date = data_stag[, "int_year"],
+                        x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 2)
 
 # Panel Cross Validation in a staggered setting
 pcv <- PanelCrossValidationMulti(data = newdata)
+
+# ATE estimation
+causal <- MLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv)
 
 }

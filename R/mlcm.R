@@ -38,7 +38,7 @@
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
-#' @param PCV         Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.
+#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
 #' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
 #'                    same covariates used to estimate ATE will be used. See Details.
@@ -176,7 +176,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
     } else {
 
-      best <- PCV
+      best <- lapply(PCV, FUN = function(x)(x[["best"]]))
 
     }
 
@@ -218,7 +218,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
                                    conf.tempavg.ind)
 
     ## 5. Saving results
-    return(list(best_method = best, fit = best, ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
+    return(list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
                 tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind))
 
   } else {
@@ -242,7 +242,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
     } else {
 
-      best <- PCV
+      best <- PCV$best
 
     }
 
@@ -610,7 +610,7 @@ check_xcate <- function(x.cate, data, id, timevar){
 }
 
 check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, PCV, CATE, x.cate, alpha){
-
+  # browser()
   ### Parameter checks
   # Checking class of 'data'
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
@@ -619,7 +619,7 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   # Checking class of 'y', 'id' and 'timevar'
   ck <- mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | class(par) == "character")))
   if(any(ck)) stop(paste(c("y", "timevar", "id")[which(ck)], "must be 'character' "))
-  ck <- mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | par %in% colnames(data))))
+  ck <- unlist(mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | par %in% colnames(data)))))
   if(any(ck)) stop (paste("there is no column called", c(y, timevar, id)[which(ck)], "in 'data'"))
 
   # Checking 'y.lag'
@@ -644,7 +644,9 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
+  #if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
+  if(!is.null(PCV) & !is.character(int_date) & (!"train" %in% class(PCV$best))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidation()'")
+  if(!is.null(PCV) & is.character(int_date)){if(any(sapply(PCV, function(x)(!"train" %in% class(x$best))))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidationMulti()' ")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
 
   # Checking CATE

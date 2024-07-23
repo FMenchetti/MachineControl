@@ -46,7 +46,7 @@ name of the column containing the dates of the interventions. See Details.}
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
-\item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
+\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.}
 
 \item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.}
 
