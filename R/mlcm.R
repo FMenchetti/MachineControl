@@ -12,7 +12,7 @@
 #'
 #' This function is the main workhorse of the package 'MachineControl'. It takes as
 #' input a panel dataset, i.e., multiple units observed at several points in time and
-#' exposed simultaneously to some policy (indicated by int_date). It then performs
+#' exposed simultaneously to some policy (indicated by \code{int_date}). It then performs
 #' the Panel Cross Validation (PCV) by comparing the predictive performance of several Machine
 #' Learning (ML) methods in the pre-intervention periods and then outputs the estimated
 #' Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
@@ -21,14 +21,15 @@
 #' suited when there are no control units available, but if there are control units these
 #' can be easily added as control series among the covariates. This function can also
 #' accomodate staggered adoption settings where groups of units are treated or shocked at
-#' different times.
+#' different times. See Details.
 #'
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
-#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
+#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates. For staggered
+#'                    adoption settings, the dataset must also have a column for the intervention dates.
 #' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
 #'                    By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
-#'                    name of the column containing the dates of the interventions. See Details.
+#'                    name of the column containing the dates of the interventions.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
@@ -39,7 +40,7 @@
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
-#' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.
+#' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). Currently not allowed for staggered adoption. See Details.
 #' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
 #'                    same covariates used to estimate ATE will be used. See Details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
@@ -63,10 +64,6 @@
 #' By default, the function estimates the ATE by averaging the individual causal effects across units. This is done
 #' for each time period after \code{int_date} (the first ATE will be computed exactly at \code{int_date}).
 #'
-#' The user can choose among many different bootstrap algorithms. For details see the documentation
-#' of the function \code{boot_ate}. For details on the PCV see the documentation of the function
-#' \code{PanelCrossValidation}.
-#'
 #' To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the
 #' \code{pcv_block} parameter, e.g., \code{pcv_block = 1} (the default) indicates to use the observations
 #' in the first time period as the first training sample and to test on the next period. Then, the second
@@ -84,18 +81,19 @@
 #'
 #' This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
 #' different times. In this case, the \code{data} must include a column with the units' intervention times.
-#' The target causal estimand is a temporal average ATE estimated as follows: a counterfactual is forecasted for
-#' the units in each treatment group and the estimated temporal average ATEs are then averaged also across the groups.
-#' [INSERIRE FORMULA QUI]
+#' The target causal estimand is the temporal average ATE estimated as follows: a counterfactual is forecasted for
+#' the units in each treatment group. If those groups are treated for more than one time period, a temporal average ATE
+#' is calculated for each group and these are averaged together. The result is the global effect of the policy or
+#' shock on all units that were treated.
 #'
 #' @return A list with the following components:
 #' \itemize{
 #'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
 #'   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
 #'   on all pre-intervention data
-#'   \item \code{ate}: the estimated ATE
+#'   \item \code{ate} or \code{global_ate}: the estimated ATE
 #'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-#'   by the user in 'inf_type'
+#'   by the user in 'inf_type' (omitted in the staggered case)
 #'   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
 #'   \item \code{ate.boot}: the bootstrap distribution for the ATE
 #'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
@@ -149,9 +147,18 @@
 #' fit$cate.inf
 #'
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
-  browser()
+
   ### Parameter checks
-  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, PCV = PCV, CATE = CATE, x.cate = x.cate, alpha = alpha)
+
+  ## ATE checks
+  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, PCV = PCV, alpha = alpha)
+  ## CATE checks
+  if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
+  if(CATE & !is.null(x.cate)){
+
+    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
+
+  } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
   ### Staggered vs non-staggered setting
   if(is.character(int_date)){
@@ -192,10 +199,6 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
     data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
     global_ind <- do.call("rbind", global_ind)
     ta_ind_effects <- merge(global_ind, unique(data_panel[, c("ID", "int_date")]))
-
-    # effects <- ate_est_multi(data = data_panel, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-    # global_ate <- effects$global_ate
-    # ta_ind_effects <- effects$tempavg_ind_effects
 
     ## 4. Global ATE & individual temporal avg effects inference
     #  4.1. m-applying 'boot_ate' to each intervention group
@@ -627,9 +630,10 @@ check_xcate <- function(x.cate, data, id, timevar){
   return(x.cate)
 }
 
-check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, PCV, CATE, x.cate, alpha){
-  # browser()
+check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, PCV, alpha){
+
   ### Parameter checks
+
   # Checking class of 'data'
   if(!any(class(data) %in% c("matrix", "data.frame", "PanelMLCM"))) stop("data must be a matrix, a data.frame or a PanelMLCM object")
   if(!"PanelMLCM" %in% class(data) & any(c(is.null(y), is.null(timevar), is.null(id)))) stop("y or id or timevar are missing with no default")
@@ -662,17 +666,8 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   if(!any(inf_type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
-  #if(!is.null(PCV)){if(!"train" %in% class(PCV)) stop ("Invalid PCV method, it should be an object of class 'train'")}
   if(!is.null(PCV) & !is.character(int_date) & (!"train" %in% class(PCV$best))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidation()'")
   if(!is.null(PCV) & is.character(int_date)){if(any(sapply(PCV, function(x)(!"train" %in% class(x$best))))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidationMulti()' ")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
-
-  # Checking CATE
-  if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
-  if(CATE & !is.null(x.cate)){
-
-    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
-
-  } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
 }

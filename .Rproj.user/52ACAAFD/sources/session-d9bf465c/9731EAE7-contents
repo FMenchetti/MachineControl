@@ -63,9 +63,9 @@ A list with the following components:
   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
   on all pre-intervention data
-  \item \code{ate} or \code{global_ate}: the estimated ATE
+  \item \code{ate}: the estimated ATE
   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-  by the user in 'inf_type' (omitted in the staggered case)
+  by the user in 'inf_type'
   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
   \item \code{ate.boot}: the bootstrap distribution for the ATE
   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
@@ -123,10 +123,12 @@ underlying assumptions see the paper cited above.
 
 This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
 different times. In this case, the \code{data} must include a column with the units' intervention times.
-The target causal estimand is the temporal average ATE estimated as follows: a counterfactual is forecasted for
-the units in each treatment group. If those groups are treated for more than one time period, a temporal average ATE
-is calculated for each group and these are averaged together. The result is the global effect of the policy or
-shock on all units that were treated.
+The target causal estimand is the temporal average ATE defined as
+\deqn{
+\bar{\tau} = \sum\limits_{i = 1^N} \sum\limits_{t = t^*^T} \tau_{i,t}
+}{ASCII}
+It is estimated as follows: a counterfactual is forecasted for
+the units in each treatment group and the estimated temporal average ATEs are then averaged also across the groups.
 }
 \examples{
 
