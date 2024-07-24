@@ -9,6 +9,9 @@ PanelCrossValidation(
   int_date,
   pcv_block = 1,
   metric = "RMSE",
+  default_par = list(gbm = list(depth = c(1, 2, 3), n.trees = c(500, 1000), shrinkage =
+    seq(0.01, 0.1, by = 0.02), n.minobsinnode = c(10, 20)), rf = list(ntree = 500), pls =
+    list(ncomp = c(1:5)), lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
   trControl = NULL,
   ML_methods = NULL
 )
@@ -22,6 +25,8 @@ PanelCrossValidation(
 
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
+
+\item{default_par}{List of parameters for the default ML algorithms. See Details.}
 
 \item{trControl}{Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.}
 

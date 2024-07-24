@@ -20,6 +20,7 @@
 #' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric Character, the performance metric that should be used to select the optimal model.
 #'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param default_par List of parameters for the default ML algorithms. See Details.
 #' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
 #' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
@@ -99,7 +100,15 @@
 #' causal$ate
 #' causal$conf.ate
 
-PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
+                                 default_par = list(gbm = list(depth = c(1,2,3),
+                                                               n.trees = c(500, 1000),
+                                                               shrinkage = seq(0.01, 0.1, by = 0.02),
+                                                               n.minobsinnode = c(10,20)),
+                                                    rf = list(ntree = 500),
+                                                    pls = list(ncomp = c(1:5)),
+                                                    lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
+                                 trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
@@ -110,6 +119,8 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   if(!is.null(ML_methods)){if(!is.list(ML_methods)) stop("ML_methods must be a list")}
   if(is.list(ML_methods)){
     if(any(sapply(ML_methods, FUN = function(x)(!all(c("method", "tuneGrid") %in% names(x)))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
+  if(is.null(ML_methods) & !is.list(default_par)) stop(" 'default_par' must be a list, check the documentation")
+  if(is.null(ML_methods) & any(!names(default_par) %in% c("gbm", "rf", "lasso", "pls"))) stop("'default_par' must be a list of parameters for the default gbm, rf, lasso and pls algorithm, check the documentation")
 
   ### STEP 1. The CAST package is used to generate separate testing sets for each year
   Tt <- length(unique(data[, "Time"]))
@@ -126,7 +137,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 
   } else {
 
-    ctrl <- trControl # da capire come fare i param checks
+    ctrl <- trControl
 
   }
 
@@ -136,10 +147,10 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
   if(is.null(ML_methods)){
 
     # STOCHASTIC GRADIENT BOOSTING
-    gbmGrid <-  expand.grid(interaction.depth = c(1, 2, 3),
-                            n.trees=c(500, 1000, 1500, 2000),
-                            shrinkage = seq(0.01, 0.1, by = 0.01),
-                            n.minobsinnode = c(10,20))
+    gbmGrid <-  expand.grid(interaction.depth = default_par$gbm$depth,
+                            n.trees = default_par$gbm$n.trees,
+                            shrinkage = default_par$gbm$shrinkage,
+                            n.minobsinnode = default_par$gbm$n.minobsinnode)
 
     #set.seed(1)
     bo <- train(Y ~ .,
@@ -159,14 +170,14 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                 search = "grid",
                 trControl = ctrl,
                 tuneGrid = expand.grid(mtry = (2:(ncol(data)-3))),
-                ntree=500)
+                ntree = default_par$rf$ntree )
     # LASSO
     lasso <- train(Y ~ .,
                    data = data[, !(names(data) %in% c("ID", "Time"))],
                    method = "lasso",
                    metric = metric,
                    trControl = ctrl,
-                   tuneGrid = expand.grid(fraction = seq(0.1, 0.9, by = 0.1)),
+                   tuneGrid = expand.grid(fraction = default_par$lasso$fraction),
                    preProc=c("center", "scale"))
 
     # PLS
@@ -175,7 +186,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                  method = "pls",
                  metric = metric,
                  trControl = ctrl,
-                 tuneGrid = expand.grid(ncomp = c(1:10)),
+                 tuneGrid = expand.grid(ncomp = default_par$pls$ncomp),
                  preProc=c("center", "scale"))
 
     # Storing results in a list
@@ -212,6 +223,8 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' @param pcv_block Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric Character, the performance metric that should be used to select the optimal model.
 #'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param default_par List of parameters for the default ML algorithms. See the Details of the function
+#'                    \code{PanelCrossValidation}
 #' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
 #' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
@@ -261,7 +274,15 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' # ATE estimation
 #' causal <- MLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv)
 #'
-PanelCrossValidationMulti <- function(data, pcv_block = 1, metric = "RMSE", trControl = NULL, ML_methods = NULL){
+PanelCrossValidationMulti <- function(data, pcv_block = 1, metric = "RMSE",
+                                      default_par = list(gbm = list(depth = c(1,2,3),
+                                                                    n.trees = c(500, 1000),
+                                                                    shrinkage = seq(0.01, 0.1, by = 0.02),
+                                                                    n.minobsinnode = c(10,20)),
+                                                         rf = list(ntree = 500),
+                                                         pls = list(ncomp = c(1:5)),
+                                                         lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
+                                      trControl = NULL, ML_methods = NULL){
 
   ### Parameter checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
@@ -271,12 +292,14 @@ PanelCrossValidationMulti <- function(data, pcv_block = 1, metric = "RMSE", trCo
   if(!is.null(ML_methods)){if(!is.list(ML_methods)) stop("ML_methods must be a list")}
   if(is.list(ML_methods)){
     if(any(sapply(ML_methods, FUN = function(x)(!all(c("method", "tuneGrid") %in% names(x)))))) stop("Each method in 'ML_methods' must be a named list, check documentation")}
+  if(is.null(ML_methods) & !is.list(default_par)) stop(" 'default_par' must be a list, check the documentation")
+  if(is.null(ML_methods) & any(!names(default_par) %in% c("gbm", "rf", "lasso", "pls"))) stop("'default_par' must be a list of parameters for the default gbm, rf, lasso and pls algorithm, check the documentation")
 
   ### Applying PCV for each intervention group
   int_date <- data[, "int_date"]
   data[, "int_date"] <- NULL
   res <- mapply(unique(int_date), FUN = function(x){datax <- data[int_date == x,];
-                                                    PanelCrossValidation(data = datax, int_date = x, pcv_block = pcv_block, metric = metric,
+                                                    PanelCrossValidation(data = datax, int_date = x, pcv_block = pcv_block, metric = metric, default_par = default_par,
                                                                          trControl = trControl, ML_methods = ML_methods)}, SIMPLIFY = FALSE)
   ### Returning results
   names(res) <- paste0("int_", unique(int_date))

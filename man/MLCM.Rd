@@ -15,6 +15,9 @@ MLCM(
   nboot = 1000,
   pcv_block = 1,
   metric = "RMSE",
+  default_par = list(gbm = list(depth = c(1, 2, 3), n.trees = c(500, 1000), shrinkage =
+    seq(0.01, 0.1, by = 0.02), n.minobsinnode = c(10, 20)), rf = list(ntree = 500), pls =
+    list(ncomp = c(1:5)), lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
   PCV = NULL,
   CATE = FALSE,
   x.cate = NULL,
@@ -46,6 +49,8 @@ name of the column containing the dates of the interventions.}
 
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
+
+\item{default_par}{List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.}
 
 \item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.}
 

@@ -39,6 +39,7 @@
 #' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param default_par List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.
 #' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). Currently not allowed for staggered adoption. See Details.
 #' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
@@ -146,12 +147,20 @@
 #' # CATE
 #' fit$cate.inf
 #'
-MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE", PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
+MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
+                 default_par = list(gbm = list(depth = c(1,2,3),
+                                               n.trees = c(500, 1000),
+                                               shrinkage = seq(0.01, 0.1, by = 0.02),
+                                               n.minobsinnode = c(10,20)),
+                                    rf = list(ntree = 500),
+                                    pls = list(ncomp = c(1:5)),
+                                    lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
+                 PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
 
   ### Parameter checks
 
   ## ATE checks
-  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, PCV = PCV, alpha = alpha)
+  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha)
   ## CATE checks
   if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
   if(CATE & !is.null(x.cate)){
@@ -178,7 +187,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
     ## 2. Panel cross-validation in staggered settings
     if(is.null(PCV)){
 
-      best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric),
+      best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric, default_par = default_par),
                      FUN = function(x)(x[["best"]]))
 
     } else {
@@ -630,7 +639,7 @@ check_xcate <- function(x.cate, data, id, timevar){
   return(x.cate)
 }
 
-check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, PCV, alpha){
+check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, default_par, PCV, alpha){
 
   ### Parameter checks
 
@@ -669,5 +678,9 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   if(!is.null(PCV) & !is.character(int_date) & (!"train" %in% class(PCV$best))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidation()'")
   if(!is.null(PCV) & is.character(int_date)){if(any(sapply(PCV, function(x)(!"train" %in% class(x$best))))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidationMulti()' ")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
+
+  # Checking default_par
+  if(is.null(PCV) & !is.list(default_par)) stop(" 'default_par' must be a list, check the documentation")
+  if(is.null(PCV) & any(!names(default_par) %in% c("gbm", "rf", "lasso", "pls"))) stop("'default_par' must be a list of parameters for the default gbm, rf, lasso and pls algorithm, check the documentation")
 
 }
