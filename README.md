@@ -8,7 +8,7 @@
 
 ## What is MachineControl?
 
-MachineControl is an R package that enables the estimation of both the average and heterogeneous causal effects of a simultaneous policy or shock (also referred to as ‘treatment’ or ‘intervention’) that directly or indirectly impacts all the units in a panel dataset. This presents a challenging causal inference scenario, as there are no unaffected units available for constructing a valid comparison group. In such situations, traditional methods like Difference-in-Differences (DiD) or the Synthetic Control Method (SCM) cannot be applied, as they rely on control units to estimate the counterfactual outcome.
+MachineControl is an R package that enables the estimation of both the average and heterogeneous causal effects of a simultaneous policy or shock (also referred to as ‘treatment’ or ‘intervention’) that directly or indirectly impacts all the units in a panel dataset. This presents a challenging causal inference scenario, as there are no unaffected units available for constructing a valid comparison group. In such situations, traditional methods like Difference-in-Differences (DiD) or the Synthetic Control Method (SCM) cannot be applied, as they rely on untreated units to estimate the counterfactual outcome.
 
 ## How does the package work?
 
@@ -20,6 +20,8 @@ based on a given performance metric, such as the Root Mean Squared Error
 
 Once the best-performing model is selected, it is used to forecast the counterfactual outcome for each unit—essentially, what would have occurred in the post-intervention period had the treatment been absent. The unit-level difference between the observed outcome and the counterfactual outcome represents the estimated individual treatment effect, which can then be aggregated to get the Average Treatment Effect (ATE).
 MachineControl can also be employed to learn about treatment effect heterogeneity by estimating data-driven Conditional Average Treatment Effects (CATEs). 
+
+MachineControl can be applied to both block-assignment as well as staggered adoption settings where there may be interferences which preclude the use of never-treated or not-yet-treated units.
 
 Inference on the estimated effects (ATE and CATE) is conducted using a block-bootstrapping approach.
 
