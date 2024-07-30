@@ -162,4 +162,17 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
 # CATE
 fit$cate.inf
 
+### Example 3. Estimating ATE in staggered settings (with default ML methods)
+
+# Assume the following intervention dates
+int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+int_year <- rep(int_year_i, each = length(unique(data$year)))
+
+# Define data_stag
+data_stag <- data.frame(int_year, data)
+
+# Estimation
+fit <- MLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
+            inf_type = "block", nboot = 10, y.lag = 2)
+
 }

@@ -147,6 +147,19 @@
 #' # CATE
 #' fit$cate.inf
 #'
+#' ### Example 3. Estimating ATE in staggered settings (with default ML methods)
+#'
+#' # Assume the following intervention dates
+#' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+#' int_year <- rep(int_year_i, each = length(unique(data$year)))
+#'
+#' # Define data_stag
+#' data_stag <- data.frame(int_year, data)
+#'
+#' # Estimation
+#' fit <- MLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
+#'             inf_type = "block", nboot = 10, y.lag = 2)
+#'
 MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                  default_par = list(gbm = list(depth = c(1,2,3),
                                                n.trees = c(500, 1000),
@@ -158,7 +171,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
                  PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
 
   ### Parameter checks
-
+  browser()
   ## ATE checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha)
   ## CATE checks
