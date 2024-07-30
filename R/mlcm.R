@@ -171,7 +171,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
                  PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
 
   ### Parameter checks
-  browser()
+
   ## ATE checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha)
   ## CATE checks
@@ -215,6 +215,8 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
     ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                             datax$int_date <- NULL
                                                             ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
+    names(ate_i) <- paste0("int_", nint)
+
     #  3.2. Global ATE & individual effects
     global_ate <- mean(sapply(ate_i, FUN = function(x)(mean(x$ate))))
     global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
@@ -230,6 +232,8 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
                                                                boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
                                                                ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag)}, SIMPLIFY = FALSE)
 
+    names(boot_inf) <- paste0("int_", nint)
+
     #  4.2. Confidence interval for global ATE & individual effects
     global_ate_boot <- rowMeans(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))))
     conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
@@ -244,7 +248,7 @@ MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, 
 
     ## 5. Saving results
     return(list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
-                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind))
+                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind, group_ate = ate_i, conf.group.ate = boot_inf))
 
   } else {
 
