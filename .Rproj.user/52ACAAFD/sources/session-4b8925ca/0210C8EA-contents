@@ -18,9 +18,8 @@
 #' Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
 #' bootstrap. Details on the causal assumptions, the estimation process and inference
 #' can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
-#' suited when there are no control units available, but if there are control units these
-#' can be easily added as control series among the covariates. This function can also
-#' accomodate staggered adoption settings where groups of units are treated or shocked at
+#' suited when there are no control units available and it can also accomodate
+#' staggered adoption settings where groups of units are treated or shocked at
 #' different times. See Details.
 #'
 #'
@@ -218,7 +217,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     names(ate_i) <- paste0("int_", nint)
 
     #  3.2. Global ATE & individual effects
-    global_ate <- mean(sapply(ate_i, FUN = function(x)(mean(x$ate))))
+    weights <- as.numeric(table(data_panel$int_date)/nrow(data_panel))
+    global_ate <- weighted.mean(sapply(ate_i, FUN = function(x)(mean(x$ate))), w = weights)
     global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
     data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
     global_ind <- do.call("rbind", global_ind)
@@ -235,7 +235,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     names(boot_inf) <- paste0("int_", nint)
 
     #  4.2. Confidence interval for global ATE & individual effects
-    global_ate_boot <- rowMeans(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))))
+    global_ate_boot <- apply(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))), 1,
+                             FUN = weighted.mean, w = weights)
     conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
     tempavg_ind <- lapply(boot_inf, FUN = function(x){n <- NROW(x$ate_boot)
                                                       asvec <- unlist(asplit(x$ind_boot, 1))

@@ -7,7 +7,7 @@
 MLCM(
   data,
   int_date,
-  inf_type,
+  inf_type = "block",
   y = NULL,
   timevar = NULL,
   id = NULL,
@@ -33,7 +33,7 @@ adoption settings, the dataset must also have a column for the intervention date
 By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
 name of the column containing the dates of the interventions.}
 
-\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
+\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'. Defaults to 'block'.}
 
 \item{y}{Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.}
 
@@ -87,9 +87,8 @@ Learning (ML) methods in the pre-intervention periods and then outputs the estim
 Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
 bootstrap. Details on the causal assumptions, the estimation process and inference
 can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
-suited when there are no control units available, but if there are control units these
-can be easily added as control series among the covariates. This function can also
-accomodate staggered adoption settings where groups of units are treated or shocked at
+suited when there are no control units available and it can also accomodate
+staggered adoption settings where groups of units are treated or shocked at
 different times. See Details.
 }
 \details{
