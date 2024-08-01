@@ -30,7 +30,7 @@
 #' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
 #'                    By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
 #'                    name of the column containing the dates of the interventions.
-#' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'
+#' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'. Defaults to 'block'.
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
@@ -160,7 +160,7 @@
 #' fit <- MLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
 #'             inf_type = "block", nboot = 10, y.lag = 2)
 #'
-MLCM <- function(data, int_date, inf_type, y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
+MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                  default_par = list(gbm = list(depth = c(1,2,3),
                                                n.trees = c(500, 1000),
                                                shrinkage = seq(0.01, 0.1, by = 0.02),
