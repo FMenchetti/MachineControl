@@ -2,6 +2,7 @@
 
 export(MLCM)
 export(PanelCrossValidation)
+export(PanelCrossValidationMulti)
 export(as.PanelMLCM)
 import(caret)
 importFrom(CAST,CreateSpacetimeFolds)

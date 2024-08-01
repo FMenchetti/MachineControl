@@ -7,7 +7,7 @@
 MLCM(
   data,
   int_date,
-  inf_type,
+  inf_type = "block",
   y = NULL,
   timevar = NULL,
   id = NULL,
@@ -15,6 +15,9 @@ MLCM(
   nboot = 1000,
   pcv_block = 1,
   metric = "RMSE",
+  default_par = list(gbm = list(depth = c(1, 2, 3), n.trees = c(500, 1000), shrinkage =
+    seq(0.01, 0.1, by = 0.02), n.minobsinnode = c(10, 20)), rf = list(ntree = 500), pls =
+    list(ncomp = c(1:5)), lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
   PCV = NULL,
   CATE = FALSE,
   x.cate = NULL,
@@ -23,12 +26,14 @@ MLCM(
 }
 \arguments{
 \item{data}{A panel dataset in long form, having one column for the time variable, one column for the units'
-unique IDs, one column for the outcome variable and one or more columns for the covariates.}
+unique IDs, one column for the outcome variable and one or more columns for the covariates. For staggered
+adoption settings, the dataset must also have a column for the intervention dates.}
 
 \item{int_date}{The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-By default, this is the first period that the causal effect should be computed for. See Details.}
+By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
+name of the column containing the dates of the interventions.}
 
-\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'}
+\item{inf_type}{Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'. Defaults to 'block'.}
 
 \item{y}{Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.}
 
@@ -45,9 +50,11 @@ By default, this is the first period that the causal effect should be computed f
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
-\item{PCV}{Optional, best performing ML method as selected from a previous call to \code{PanelCrossValidation}.}
+\item{default_par}{List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.}
 
-\item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). See Details.}
+\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.}
+
+\item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). Currently not allowed for staggered adoption. See Details.}
 
 \item{x.cate}{Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
 same covariates used to estimate ATE will be used. See Details.}
@@ -61,9 +68,9 @@ A list with the following components:
   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
   on all pre-intervention data
-  \item \code{ate}: the estimated ATE
+  \item \code{ate} or \code{global_ate}: the estimated ATE
   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-  by the user in 'inf_type'
+  by the user in 'inf_type' (omitted in the staggered case)
   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
   \item \code{ate.boot}: the bootstrap distribution for the ATE
   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
@@ -74,14 +81,15 @@ A list with the following components:
 \description{
 This function is the main workhorse of the package 'MachineControl'. It takes as
 input a panel dataset, i.e., multiple units observed at several points in time and
-exposed simultaneously to some policy (indicated by int_date). It then performs
+exposed simultaneously to some policy (indicated by \code{int_date}). It then performs
 the Panel Cross Validation (PCV) by comparing the predictive performance of several Machine
 Learning (ML) methods in the pre-intervention periods and then outputs the estimated
 Average Treatment Effect (ATE) of the policy and its confidence interval estimated by
 bootstrap. Details on the causal assumptions, the estimation process and inference
 can be found in Cerqua A., Letta M., and Menchetti F. (2023). The method is especially
-suited when there are no control units available, but if there are control units these
-can be easily added as control series among the covariates.
+suited when there are no control units available and it can also accomodate
+staggered adoption settings where groups of units are treated or shocked at
+different times. See Details.
 }
 \details{
 The panel \code{data} must at least include the response variable, a column of the time variable,
@@ -102,10 +110,6 @@ and must execute their own panel cross validation. See the examples below.
 By default, the function estimates the ATE by averaging the individual causal effects across units. This is done
 for each time period after \code{int_date} (the first ATE will be computed exactly at \code{int_date}).
 
-The user can choose among many different bootstrap algorithms. For details see the documentation
-of the function \code{boot_ate}. For details on the PCV see the documentation of the function
-\code{PanelCrossValidation}.
-
 To speed up the PCV process, the user can 'block' some pre-intervention periods by increasing the
 \code{pcv_block} parameter, e.g., \code{pcv_block = 1} (the default) indicates to use the observations
 in the first time period as the first training sample and to test on the next period. Then, the second
@@ -120,6 +124,13 @@ a Conditional Average Treatment Effect (CATE) as described in Cerqua A., Letta M
 and it is of interest when researchers suspect that the policy ('treatment' or 'intervention') has produced
 heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
 underlying assumptions see the paper cited above.
+
+This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
+different times. In this case, the \code{data} must include a column with the units' intervention times.
+The target causal estimand is the temporal average ATE estimated as follows: a counterfactual is forecasted for
+the units in each treatment group. If those groups are treated for more than one time period, a temporal average ATE
+is calculated for each group and these are averaged together. The result is the global effect of the policy or
+shock on all units that were treated.
 }
 \examples{
 
@@ -149,5 +160,18 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
 
 # CATE
 fit$cate.inf
+
+### Example 3. Estimating ATE in staggered settings (with default ML methods)
+
+# Assume the following intervention dates
+int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+int_year <- rep(int_year_i, each = length(unique(data$year)))
+
+# Define data_stag
+data_stag <- data.frame(int_year, data)
+
+# Estimation
+fit <- MLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
+            inf_type = "block", nboot = 10, y.lag = 2)
 
 }

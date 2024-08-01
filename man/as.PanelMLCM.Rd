@@ -4,17 +4,20 @@
 \alias{as.PanelMLCM}
 \title{Structuring the panel dataset}
 \usage{
-as.PanelMLCM(y, x, timevar, id, y.lag = 0)
+as.PanelMLCM(y, x, timevar, id, int_date = NULL, y.lag = 0)
 }
 \arguments{
 \item{y}{Numeric, the outcome variable.}
 
 \item{x}{Matrix or data.frame of covariates to include in the model.}
 
-\item{timevar}{The column containing the time variable. It can be numeric, integer or
-a date object}
+\item{timevar}{The column containing the time variable. It can be \code{numeric}, \code{integer} or
+\code{Date}.}
 
 \item{id}{Numeric, the column containing the ID's.}
+
+\item{int_date}{Optional, only needed in staggered adoption setting to identify the column
+reporting the dates of intervention.}
 
 \item{y.lag}{Optional, number of lags of the dependent variable to include in the model.}
 }
@@ -29,11 +32,12 @@ to be used by the function 'MLCM'.
 \details{
 This function is mainly for internal use of \code{MLCM}. It is exported to give
 users full flexibility in the choice of the ML algorithms and during the panel cross validation.
-See the documentation of the function \code{PanelCrossValidation}.
+See the documentation of the function \code{PanelCrossValidation} or, for a staggered adoption
+setting, \code{PanelCrossValidationMulti}.
 }
 \examples{
 
-# Start from a disorganized panel dataset
+# Example 1. Start from a disorganized panel dataset
 head(data)
 
 # Run as.PanelMLCM
@@ -42,4 +46,21 @@ newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "
 
 # Results
 head(newdata)
+
+# Example 2. Disorganized panel dataset in a staggered adoption setting
+
+# Assume the following intervention dates
+int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+int_year <- rep(int_year_i, each = length(unique(data$year)))
+
+# Define data_stag
+data_stag <- data.frame(int_year, data)
+
+# Organizing the dataset with as.PanelMLCM
+newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
+                       int_date = data_stag[, "int_year"],
+                       x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 2)
+# Results
+head(newdata)
+
 }

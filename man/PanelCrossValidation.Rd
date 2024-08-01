@@ -9,6 +9,9 @@ PanelCrossValidation(
   int_date,
   pcv_block = 1,
   metric = "RMSE",
+  default_par = list(gbm = list(depth = c(1, 2, 3), n.trees = c(500, 1000), shrinkage =
+    seq(0.01, 0.1, by = 0.02), n.minobsinnode = c(10, 20)), rf = list(ntree = 500), pls =
+    list(ncomp = c(1:5)), lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
   trControl = NULL,
   ML_methods = NULL
 )
@@ -23,6 +26,8 @@ PanelCrossValidation(
 \item{metric}{Character, the performance metric that should be used to select the optimal model.
 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
+\item{default_par}{List of parameters for the default ML algorithms. See Details.}
+
 \item{trControl}{Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.}
 
 \item{ML_methods}{Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
@@ -30,7 +35,12 @@ as a named list of two elements: a character defining the method name from all t
 and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'}
 }
 \value{
-A list of class \code{train} with the best-performing ML method.
+A list containing the following objects:
+\itemize{
+  \item \code{best}: the best-performing ML algorithm
+  \item \code{best.metric}: the value of \code{metric} for the best-performing ML algorithm
+  \item \code{all_methods}: detailed results for all the methods tried during the PCV routine
+ }
 }
 \description{
 This function implements the panel cross validation technique as described in
@@ -84,7 +94,7 @@ linreg <- list(method = "lm",
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg))
 
-causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv$best,
+causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
                nboot = 10, CATE = FALSE)
 
 causal$ate
