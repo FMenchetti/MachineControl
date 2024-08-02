@@ -21,7 +21,8 @@ MLCM(
   PCV = NULL,
   CATE = FALSE,
   x.cate = NULL,
-  alpha = 0.05
+  alpha = 0.05,
+  fe = FALSE
 )
 }
 \arguments{
@@ -61,6 +62,8 @@ same covariates used to estimate ATE will be used. See Details.}
 
 \item{alpha}{Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 95\% confidence interval.}
+
+\item{fe}{Logical, whether to include fixed effects dummy variables. Defaults to false.}
 }
 \value{
 A list with the following components:
@@ -96,7 +99,8 @@ The panel \code{data} must at least include the response variable, a column of t
 and a column with the unit identifiers. Lagged values of the outcome, lagged or contemporaneous
 exogenous covariates, control series can also be added in the panel dataset. The ML algorithms
 will automatically treat every column that is left as additional information to improve the
-prediction of the counterfactual post-intervention outcome.
+prediction of the counterfactual post-intervention outcome. If \code{fe = TRUE}, N-1 dummy variables
+will be added to the dataset, where N is the total number of units in the panel.
 
 By default, the function internally uses \code{as.PanelMLCM} to organize a messy panel dataset and
 then compares the performance of two linear models (Partial Least Squares and LASSO)

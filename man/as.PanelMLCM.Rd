@@ -4,7 +4,7 @@
 \alias{as.PanelMLCM}
 \title{Structuring the panel dataset}
 \usage{
-as.PanelMLCM(y, x, timevar, id, int_date = NULL, y.lag = 0)
+as.PanelMLCM(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FALSE)
 }
 \arguments{
 \item{y}{Numeric, the outcome variable.}
@@ -20,6 +20,8 @@ as.PanelMLCM(y, x, timevar, id, int_date = NULL, y.lag = 0)
 reporting the dates of intervention.}
 
 \item{y.lag}{Optional, number of lags of the dependent variable to include in the model.}
+
+\item{fe}{Logical, whether to include fixed effects dummy variables. Defaults to false.}
 }
 \value{
 An object of class 'data.frame' and 'PanelMLCM'.
@@ -34,6 +36,9 @@ This function is mainly for internal use of \code{MLCM}. It is exported to give
 users full flexibility in the choice of the ML algorithms and during the panel cross validation.
 See the documentation of the function \code{PanelCrossValidation} or, for a staggered adoption
 setting, \code{PanelCrossValidationMulti}.
+
+If \code{fe = TRUE}, N-1 dummy variables will be added to the dataset, where N is the total number
+of units in the panel).
 }
 \examples{
 

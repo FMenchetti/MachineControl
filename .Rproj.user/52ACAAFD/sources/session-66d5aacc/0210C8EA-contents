@@ -45,12 +45,15 @@
 #'                    same covariates used to estimate ATE will be used. See Details.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
+#' @param fe          Logical, whether to include fixed effects dummy variables. Defaults to false.
+#'
 #' @details
 #' The panel \code{data} must at least include the response variable, a column of the time variable,
 #' and a column with the unit identifiers. Lagged values of the outcome, lagged or contemporaneous
 #' exogenous covariates, control series can also be added in the panel dataset. The ML algorithms
 #' will automatically treat every column that is left as additional information to improve the
-#' prediction of the counterfactual post-intervention outcome.
+#' prediction of the counterfactual post-intervention outcome. If \code{fe = TRUE}, N-1 dummy variables
+#' will be added to the dataset, where N is the total number of units in the panel.
 #'
 #' By default, the function internally uses \code{as.PanelMLCM} to organize a messy panel dataset and
 #' then compares the performance of two linear models (Partial Least Squares and LASSO)
@@ -167,12 +170,12 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
                                     rf = list(ntree = 500),
                                     pls = list(ncomp = c(1:5)),
                                     lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
-                 PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05){
+                 PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05, fe = FALSE){
 
   ### Parameter checks
 
   ## ATE checks
-  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha)
+  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
   ## CATE checks
   if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
   if(CATE & !is.null(x.cate)){
@@ -193,7 +196,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
       data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
                                  int_date = data[, int_date],
-                                 x = data[, !(names(data) %in% c(y, id, timevar, int_date))], y.lag = y.lag)
+                                 x = data[, !(names(data) %in% c(y, id, timevar, int_date))],
+                                 y.lag = y.lag, fe = fe)
     }
 
     ## 2. Panel cross-validation in staggered settings
@@ -261,7 +265,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     } else {
 
       data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                                 x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag)
+                                 x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag, fe = fe)
 
     }
 
@@ -363,11 +367,15 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' @param int_date Optional, only needed in staggered adoption setting to identify the column
 #'                 reporting the dates of intervention.
 #' @param y.lag Optional, number of lags of the dependent variable to include in the model.
+#' @param fe Logical, whether to include fixed effects dummy variables. Defaults to false.
 #'
 #' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
 #' users full flexibility in the choice of the ML algorithms and during the panel cross validation.
 #' See the documentation of the function \code{PanelCrossValidation} or, for a staggered adoption
 #' setting, \code{PanelCrossValidationMulti}.
+#'
+#' If \code{fe = TRUE}, N-1 dummy variables will be added to the dataset, where N is the total number
+#' of units in the panel).
 #'
 #' @return An object of class 'data.frame' and 'PanelMLCM'.
 #' @export
@@ -399,7 +407,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' # Results
 #' head(newdata)
 #'
-as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0){
+as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FALSE){
 
   # Parameter checks
   if(!(is.numeric(y) & length(y)>1)) stop("y must be a numeric vector of length greater than 1")
@@ -412,7 +420,7 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0){
   if(any(!(unique(int_date) %in% timevar))) stop("all dates in 'int_date' must be contained in timevar")
   if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")
   if(length(unique(timevar)) <= y.lag) stop("The number of selected lags is greater or equal to the number of times, resulting in an empty dataset")
-
+  if(!is.logical(fe)) stop("fe must be logical, defaults to FALSE")
 
   ### STEP 1. Structuring the panel dataset
   if(is.null(int_date)){
@@ -423,6 +431,15 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0){
 
     panel <- data.frame(Time = timevar, ID = id, Y = y, int_date = int_date, x)
 
+  }
+
+  if(fe){
+
+    # Generating matrix of FE dummies
+    dm <- model.matrix(~factor(panel$ID) -1)
+    dm <- dm[,-1]
+    colnames(dm) <- paste0("FE_", unique(panel$ID)[-1])
+    panel <- data.frame(panel, dm)
   }
 
   ### STEP 2. Are there any past lags of 'y' to include?
@@ -657,7 +674,7 @@ check_xcate <- function(x.cate, data, id, timevar){
   return(x.cate)
 }
 
-check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, default_par, PCV, alpha){
+check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, default_par, PCV, alpha, fe){
 
   ### Parameter checks
 
@@ -671,8 +688,9 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   ck <- unlist(mapply(list(y, timevar, id), FUN = function(par)(!(is.null(par) | par %in% colnames(data)))))
   if(any(ck)) stop (paste("there is no column called", c(y, timevar, id)[which(ck)], "in 'data'"))
 
-  # Checking 'y.lag'
+  # Checking 'y.lag', 'fe'
   if(!is.numeric(y.lag) | y.lag < 0 ) stop("y.lag must be numeric and strictly positive")  # should be integer
+  if(!is.logical(fe)) stop("fe must be logical, defaults to FALSE")
 
   # Checking 'int_date'
   if(!any(class(int_date) %in% c("Date", "POSIXct", "POSIXlt", "POSIXt", "numeric", "integer", "character"))) stop("int_date must be integer, numeric, date or character")
