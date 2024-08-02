@@ -173,7 +173,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
                  PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05, fe = FALSE){
 
   ### Parameter checks
-
+  #browser()
   ## ATE checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
   ## CATE checks
@@ -234,7 +234,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                                datax$int_date <- NULL
                                                                boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
-                                                               ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag)}, SIMPLIFY = FALSE)
+                                                               ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag, fe = fe)}, SIMPLIFY = FALSE)
 
     names(boot_inf) <- paste0("int_", nint)
 
@@ -289,7 +289,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     invisible(capture.output(
 
       boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
-                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
+                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe)
 
     ))
 

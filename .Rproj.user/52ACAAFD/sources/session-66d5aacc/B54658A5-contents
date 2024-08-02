@@ -13,19 +13,20 @@
 #' Internal function, used within the MLCM routine for the estimation of ATE
 #' standard error and 95% confidence interval.
 #'
-#' @param data A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
+#' @param data     A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
 #' @param int_date The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-#' @param bestt Object of class \code{train}, the best-performing ML method as selected
-#'              by panel cross validation.
-#' @param type Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
-#' @param nboot Number of bootstrap replications.
-#' @param alpha Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
-#'              95\% confidence interval
-#' @param metric Character, the performance metric that should be used to select the optimal model.
-#'               Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
-#' @param ate Numeric, the estimated ATE in the sample.
-#' @param ind.eff Matrix of estimated individual effects. Only needed when \code{"type"} is \code{bc classic},
-#'                \code{bc block} or \code{bca}
+#' @param bestt    Object of class \code{train}, the best-performing ML method as selected
+#'                 by panel cross validation.
+#' @param type     Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'.
+#' @param nboot    Number of bootstrap replications.
+#' @param alpha    Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+#'                 95\% confidence interval
+#' @param metric   Character, the performance metric that should be used to select the optimal model.
+#'                 Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param ate      Numeric, the estimated ATE in the sample.
+#' @param ind.eff  Matrix of estimated individual effects. Only needed when \code{"type"} is \code{bc classic},
+#'                 \code{bc block} or \code{bca}
+#' @param fe       Logical, whether to include fixed effects dummy variables. Defaults to false.
 #'
 #' @return A list with the following components:
 #' \itemize{
@@ -46,8 +47,8 @@
 #' @importFrom stats sd
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate, ind.eff = NULL){
-
+boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate, fe, ind.eff = NULL){
+  # browser()
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
   if(!any(type %in% c("classic", "block", "bc classic", "bc block", "bca"))) stop("Inference type not allowed, check the documentation")
@@ -67,7 +68,19 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     ii<- matrix(sample(pre, size = nboot*length(pre), replace = T), nrow = nboot, ncol = length(pre))
 
     # Step 2. Estimating individual effects and ATE for each bootstrap iteration
-    eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    if(fe){
+
+      eff_boot <- apply(ii, 1, function(i){inn <- paste0("FE_", unique(data[i, "ID"]))
+                                           out <- setdiff(grep(colnames(data), pattern = "FE_", value = T), inn)
+                                           data_boot <- data[c(i, post), ]
+                                           data_boot[, out] <- NULL
+                                           ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    } else {
+
+      eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+
+    }
+
     ate_boot <- sapply(eff_boot, function(x)(x$ate))
     ind_boot <- sapply(eff_boot, function(x)(x$ind_effects[,-1]))
 
@@ -88,7 +101,21 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
     }, simplify = FALSE)
 
     # Step 3. Estimating individual effects and ATE for each bootstrap iteration
-    eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+    if(fe){
+
+      eff_boot <- mapply(i = ii0, ids = ind1, function(i, ids){inn <- paste0("FE_", ids)
+                                                               out <- setdiff(grep(colnames(data), pattern = "FE_", value = T), inn)
+                                                               data_boot <- data[c(i, post), ]
+                                                               data_boot[, out] <- NULL
+                                                               ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)},
+                         SIMPLIFY = FALSE)
+
+    } else {
+
+      eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+
+    }
+
     ate_boot <- sapply(eff_boot, function(x)(x$ate))
     ind_boot <- sapply(eff_boot, function(x)(x$ind_effects[,-1]))
 
