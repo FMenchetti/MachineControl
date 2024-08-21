@@ -221,7 +221,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     names(ate_i) <- paste0("int_", nint)
 
     #  3.2. Global ATE & individual effects
-    weights <- as.numeric(table(data_panel$int_date)/nrow(data_panel))
+    weights <- sapply(unique(data_panel$int_date), FUN = function(x)(sum(data_panel$int_date == x)))/nrow(data_panel)
+    # weights <- as.numeric(table(data_panel$int_date)/nrow(data_panel))
     global_ate <- weighted.mean(sapply(ate_i, FUN = function(x)(mean(x$ate))), w = weights)
     global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
     data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
@@ -430,6 +431,7 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FAL
   } else {
 
     panel <- data.frame(Time = timevar, ID = id, Y = y, int_date = int_date, x)
+    #panel <- panel[order(panel$int_date), ]
 
   }
 
