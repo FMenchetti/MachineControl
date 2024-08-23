@@ -1,27 +1,27 @@
 {
-    "id": "687A6377",
-    "path": "~/GitHub/MLCM/R/panelcv.R",
-    "project_path": "R/panelcv.R",
+    "id": "29BF67CA",
+    "path": "~/GitHub/MLCM/R/plot.R",
+    "project_path": "R/plot.R",
     "type": "r_source",
-    "hash": "2785227791",
+    "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1690033397041.0,
+    "created": 1724402177238.0,
     "source_on_save": false,
-    "relative_order": 2,
+    "relative_order": 5,
     "properties": {
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "6,34",
-        "scrollLine": "0"
+        "cursorPosition": "16,0",
+        "scrollLine": "11"
     },
     "folds": "",
-    "lastKnownWriteTime": 1724402332,
+    "lastKnownWriteTime": 1724409689,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1724402332365,
+    "last_content_update": 1724409689021,
     "read_only": false,
     "read_only_alternatives": []
 }

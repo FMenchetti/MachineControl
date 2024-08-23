@@ -4,7 +4,7 @@
 ##
 ## Authors: Cerqua A., Letta M., Menchetti F.
 ##
-## Date last modified: July 2023
+## Date last modified: August 2024
 ##
 ###############################################################################
 
@@ -274,9 +274,11 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     rownames(conf.groupavg) <- c(alpha/2, 1- alpha/2)
 
     ## 5. Saving results
-    return(list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
+    res <- list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
                 tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind, group_ate = ate_i, conf.group.ate = boot_inf,
-                groupavg = group$groupavg_eff, conf.groupavg = conf.groupavg))
+                groupavg = group$groupavg_eff, conf.groupavg = conf.groupavg)
+    class(res) <- "StagMLCM"
+    return(res)
 
   } else {
 
