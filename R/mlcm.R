@@ -173,7 +173,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
                  PCV = NULL, CATE = FALSE, x.cate = NULL, alpha = 0.05, fe = FALSE){
 
   ### Parameter checks
-  #browser()
+
   ## ATE checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
   ## CATE checks
@@ -212,25 +212,33 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
     }
 
-    ## 3. Global ATE & individual temporal avg effects estimation
-    #  3.1. m-applying 'ate_est' to each intervention group
+    ## 3. Global ATE & individual effects estimation
+    #  3.0. m-applying 'ate_est' to each intervention group
     nint <- unique(data_panel$int_date)
     ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                             datax$int_date <- NULL
                                                             ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
     names(ate_i) <- paste0("int_", nint)
 
-    #  3.2. Global ATE & individual effects
+    #  3.1. Global ATE: estimation
+    #  This is a temporal average ATE -- avg. of individual effects over both units and times and then averaged across cohorts
     weights <- sapply(unique(data_panel$int_date), FUN = function(x)(sum(data_panel$int_date == x)))/nrow(data_panel)
-    # weights <- as.numeric(table(data_panel$int_date)/nrow(data_panel))
     global_ate <- weighted.mean(sapply(ate_i, FUN = function(x)(mean(x$ate))), w = weights)
+
+    #  3.2. Global individual effects: estimation
+    #  This is a temporal average effect for each unit -- avg. of individual effects over time
     global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
     data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
     global_ind <- do.call("rbind", global_ind)
     ta_ind_effects <- merge(global_ind, unique(data_panel[, c("ID", "int_date")]))
 
-    ## 4. Global ATE & individual temporal avg effects inference
-    #  4.1. m-applying 'boot_ate' to each intervention group
+    #  3.3. Group-average effects: estimation
+    #  This is an average of individual effects in the pre- and post-intervention across cohorts
+    #  Note that the pre-intervention effects are 'placebo' effects
+    group <- .groupavg_eff(data = data, alpha = alpha, ate_i = ate_i)
+
+    ## 4. Global ATE & individual effects inference
+    #  4.0. m-applying 'boot_ate' to each intervention group
     ind <- which(colnames(ta_ind_effects) == "int_date")
     boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                                datax$int_date <- NULL
@@ -239,10 +247,12 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
     names(boot_inf) <- paste0("int_", nint)
 
-    #  4.2. Confidence interval for global ATE & individual effects
+    #  4.1. Global ATE: confidence interval
     global_ate_boot <- apply(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))), 1,
                              FUN = weighted.mean, w = weights)
     conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
+
+    # 4.2. Global individual effects: confidence interval
     tempavg_ind <- lapply(boot_inf, FUN = function(x){n <- NROW(x$ate_boot)
                                                       asvec <- unlist(asplit(x$ind_boot, 1))
                                                       asarr <- array(asvec, dim = c(nboot, nrow(x$ind_boot)/n ,n))
@@ -252,9 +262,21 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     conf.tempavg.ind <- data.frame(do.call("rbind", sapply(nint, FUN = function(x)(unique(data_panel[data_panel$int_date == x, c("ID", "int_date")])), simplify = FALSE)),
                                    conf.tempavg.ind)
 
+    # 4.3. Group-average effects: confidence interval
+    lower <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = alpha/2)))
+    lower <- lower[, order(colnames(lower))]
+    group.lower <- sapply(1:nrow(lower), FUN = function(i)(weighted.mean(lower[i,], w = group$global.weights[i,])))
+    upper <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = 1- alpha/2)))
+    upper <- upper[, order(colnames(upper))]
+    group.upper <- sapply(1:nrow(upper), FUN = function(i)(weighted.mean(upper[i,], w = group$global.weights[i,])))
+    conf.groupavg <- rbind(group.lower, group.upper)
+    colnames(conf.groupavg) <- names(group$groupavg_eff)
+    rownames(conf.groupavg) <- c(alpha/2, 1- alpha/2)
+
     ## 5. Saving results
     return(list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
-                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind, group_ate = ate_i, conf.group.ate = boot_inf))
+                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind, group_ate = ate_i, conf.group.ate = boot_inf,
+                groupavg = group$groupavg_eff, conf.groupavg = conf.groupavg))
 
   } else {
 
@@ -285,12 +307,13 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
     effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
     ate <- effects$ate
     ind_effects <- effects$ind_effects
+    placebo_effects <- effects$placebo_effects
 
     ## 4. ATE & individual effects inference
     invisible(capture.output(
 
       boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
-                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe)
+                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe, placebo.eff = placebo_effects)
 
     ))
 
@@ -309,7 +332,9 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
     ## 6. Saving results
     return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
-                ind.effects = ind_effects, conf.individual = boot_inf$conf.individual, cate = cate, cate.inf = cate.inf))
+                ind.effects = ind_effects, conf.individual = boot_inf$conf.individual,
+                placebo.effects = placebo_effects, conf.placebo = boot_inf$conf.placebo,
+                cate = cate, cate.inf = cate.inf))
 
   }
 
@@ -527,7 +552,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 
     }
 
-    ### STEP 4. ATE estimation (observed - predicted). Note that when there is more than 1 post-intervention
+    ### Step 4. ATE estimation (observed - predicted). Note that when there is more than 1 post-intervention
     ###         period and y.lag > 1, the MLCM routine will use the observed impacted series, disrupting all estimates.
     ###         e.g., int_date = 2020, 2 post-int periods, 2 lags: to predict Y_2020 MLCM will use Y_2018 (pre-int) and Y_2019 (pre-int),
     ###         but to predict Y_2021 MLCM will use Y_2019 (pre-int) and Y_2020 (post-int), which is not ok. With this last step,
@@ -551,10 +576,19 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
     }
   }
 
-  ### Step 3. Returning the matrix of individual effects and the ATE
+  ### Step 5. Estimation of placebo effects (effects in the pre-intervention period)
+  ind <- data$Time < int_date
+  placebo <- data[ind, "Y"] - predict.train(fit, newdata = data[ind, ])
+  npre <- unique(data[ind, "Time"])
+  placebo_mean <- sapply(npre, FUN = function(x)(mean(placebo[data[ind, "Time"] == x])))
+  names(placebo_mean) <- npre
+  placebo_mean <- placebo_mean[order(names(placebo_mean))]
+
+  ### Step 6. Returning the matrix of individual effects, the ATE and the placebo effects
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   ind_effects <- ind_effects[order(ind_effects[, "ID"], decreasing = F), ]
-  return(list(ind_effects = ind_effects, ate = colMeans(as.matrix(ind_effects[, -1]))))
+  return(list(ind_effects = ind_effects, ate = colMeans(as.matrix(ind_effects[, -1])),
+              placebo_effects = placebo_mean))
 }
 
 #' CATE estimation
@@ -720,5 +754,48 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   # Checking default_par
   if(is.null(PCV) & !is.list(default_par)) stop(" 'default_par' must be a list, check the documentation")
   if(is.null(PCV) & any(!names(default_par) %in% c("gbm", "rf", "lasso", "pls"))) stop("'default_par' must be a list of parameters for the default gbm, rf, lasso and pls algorithm, check the documentation")
+
+}
+
+.groupavg_eff <- function(data, alpha, ate_i){
+
+  # Internal function that computes the average causal effect for each time
+  # pre- and post-intervention. The average is done across cohorts, i.e., for each cohort
+  # a vector of effect is estimated with the function ate_est. Before the cohort gets treated,
+  # the effect is a 'placebo' effect and after treatment it is the causal effect of the treatment received
+  # The result of this function is a vector of effects and their confidence interval.
+
+  ### Settings
+  int.dates <- sort(unique(data$int_date))
+  pre.int <- sort(unique(data$Time[data$Time < min(int.dates)]))
+  post.int <- sort(unique(data$Time[data$Time>=min(int.dates)]))
+
+  ### STEP 1. Weights pre-intervention
+  weights <- table(data$int_date)/nrow(data)
+  placebo.pre <- matrix(weights, length(pre.int), length(int.dates), byrow = T)
+  colnames(placebo.pre) <- paste0("int_", names(weights))
+  rownames(placebo.pre) <- pre.int
+
+  ### STEP 2. Weights post-intervention
+  placebo.post <- sapply(post.int, FUN = function(x){w <- table(data$int_date[data$int_date<=x])/sum(data$int_date<=x)
+                                                     add <- int.dates[which(!int.dates %in% names(w))]
+                                                     w <- c(w, setNames(rep(0, length(add)), add))
+                                                     w <- w[order(names(w))]})
+  colnames(placebo.post) <- post.int
+  rownames(placebo.post) <- gsub(rownames(placebo.post), patter="^", replacement = "int_")
+
+
+  ### STEP 3. Matrix of global weights (pre- and post-intervention)
+  global.weights <- rbind(placebo.pre, t(placebo.post))
+
+  ### STEP 4. Average effects at each time post-intervention -- weighted average based on cohort numerosity
+  mat <- sapply(ate_i, FUN = function(x)(c(x$placebo_effects, x$ate)))
+  rownames(mat) <- c(pre.int, post.int)
+  mat <- mat[, order(colnames(mat))]
+  groupavg_eff <- sapply(1:nrow(mat), FUN = function(i)(weighted.mean(mat[i,], w = global.weights[i,])))
+  names(groupavg_eff) <- rownames(mat)
+
+  ### STEP 5. Returning results
+  return(list(groupavg_eff = groupavg_eff, global.weights = global.weights, time_eff = mat))
 
 }

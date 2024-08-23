@@ -1,0 +1,33 @@
+#devtools::install_github("FMenchetti/MachineControl")
+rm(list=ls())
+library(MachineControl)
+set.seed(1)
+data <- read.csv("C:\\Users\\fiamm\\Downloads\\cs_mlcm.csv")
+#data <- read.csv("G:\\Drive condivisi\\MLCM\\replication CS 2021\\cs_mlcm.csv")
+names(data)
+# Organizing the dataset with as.PanelMLCM
+newdata <- as.PanelMLCM(y = data[, "lemp"], timevar = data[, "year"], id = data[, "countyreal"],
+                          int_date = data[, "firsttreat"],
+                          x = data[, !(names(data) %in% c("lemp", "countyreal", "year", "firsttreat"))], y.lag = 1)
+
+#lm <- list(method = "lm",  tuneGrid = expand.grid(intercept=TRUE))
+#gbmGrid <-  expand.grid(interaction.depth = c(1), 
+                       # n.trees=c(500), 
+                       # shrinkage = c(0.0001),
+                      #  n.minobsinnode = c(10))
+# gbm <- list(method="gbm", tuneGrid = gbmGrid)
+rf <- list(method="rf", tuneGrid = expand.grid(mtry = c(3,6,9)), ntree=1000)
+lambda <- 10^seq(-1000, 1000, length = 100)
+lasso <- list(method="glmnet", tuneGrid = expand.grid(alpha = 1, lambda = lambda))
+pcv <- PanelCrossValidationMulti(data = newdata, ML_methods = list(lasso, rf))
+fit <- MLCM(data = newdata, int_date = "int_date",  
+            inf_type = "block", nboot = 1000, CATE = FALSE, PCV=pcv, y.lag=1)
+fit$global_ate
+fit$best_method
+fit$conf.global.ate 
+fit$group_ate # these are the post-treatment point estimates for the event-study plot
+fit$conf.group.ate$int_2004 # these and the two below are the confidence intervals for each cohort for the post-treatment point estimates
+fit$conf.group.ate$int_2006
+fit$conf.group.ate$int_2007
+# there remain to be extracted pre-treatment (placebo) estimates along with their bootstrapped CIs
+# for the event study plot, we can use ggplot2? let's make it as similar as possible to Figure 1 of callaway sant'anna
