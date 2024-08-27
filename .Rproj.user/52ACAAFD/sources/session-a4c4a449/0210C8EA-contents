@@ -24,11 +24,9 @@
 #'
 #'
 #' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
-#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates. For staggered
-#'                    adoption settings, the dataset must also have a column for the intervention dates.
+#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates.
 #' @param int_date    The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
-#'                    By default, this is the first period that the causal effect should be computed for. For staggered adoption settings,
-#'                    name of the column containing the dates of the interventions.
+#'                    By default, this is the first period that the causal effect should be computed for.
 #' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'. Defaults to 'block'.
 #' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
 #' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
@@ -82,12 +80,6 @@
 #' heterogeneous effects on the units in the panel. For additional details on the causal estimands, estimation process and
 #' underlying assumptions see the paper cited above.
 #'
-#' This function can also accomodate staggered adoption settings where groups of units are treated or shocked at
-#' different times. In this case, the \code{data} must include a column with the units' intervention times.
-#' The target causal estimand is the temporal average ATE estimated as follows: a counterfactual is forecasted for
-#' the units in each treatment group. If those groups are treated for more than one time period, a temporal average ATE
-#' is calculated for each group and these are averaged together. The result is the global effect of the policy or
-#' shock on all units that were treated.
 #'
 #' @return A list with the following components:
 #' \itemize{
@@ -149,19 +141,6 @@
 #' # CATE
 #' fit$cate.inf
 #'
-#' ### Example 3. Estimating ATE in staggered settings (with default ML methods)
-#'
-#' # Assume the following intervention dates
-#' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
-#' int_year <- rep(int_year_i, each = length(unique(data$year)))
-#'
-#' # Define data_stag
-#' data_stag <- data.frame(int_year, data)
-#'
-#' # Estimation
-#' fit <- MLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
-#'             inf_type = "block", nboot = 10, y.lag = 2)
-#'
 MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                  default_par = list(gbm = list(depth = c(1,2,3),
                                                n.trees = c(500, 1000),
@@ -176,6 +155,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
   ## ATE checks
   check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
+
   ## CATE checks
   if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
   if(CATE & !is.null(x.cate)){
@@ -184,200 +164,277 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 
   } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
-  ### Staggered vs non-staggered setting
-  if(is.character(int_date)){
+  ## 1. Structuring the panel dataset in the required format
+  if("PanelMLCM" %in% class(data)){
 
-    ## 1. Structuring the panel dataset in the required format
-    if("PanelMLCM" %in% class(data)){
-
-      data_panel <- data
-
-    } else {
-
-      data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                                 int_date = data[, int_date],
-                                 x = data[, !(names(data) %in% c(y, id, timevar, int_date))],
-                                 y.lag = y.lag, fe = fe)
-    }
-
-    ## 2. Panel cross-validation in staggered settings
-    if(is.null(PCV)){
-
-      best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric, default_par = default_par),
-                     FUN = function(x)(x[["best"]]))
-
-    } else {
-
-      best <- lapply(PCV, FUN = function(x)(x[["best"]]))
-
-    }
-
-    ## 3. Global ATE & individual effects estimation
-    #  3.0. m-applying 'ate_est' to each intervention group
-    nint <- unique(data_panel$int_date)
-    ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
-                                                            datax$int_date <- NULL
-                                                            ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
-    names(ate_i) <- paste0("int_", nint)
-
-    #  3.1. Global ATE: estimation
-    #  This is a temporal average ATE -- avg. of individual effects over both units and times and then averaged across cohorts
-    weights <- sapply(unique(data_panel$int_date), FUN = function(x)(sum(data_panel$int_date == x)))/nrow(data_panel)
-    global_ate <- weighted.mean(sapply(ate_i, FUN = function(x)(mean(x$ate))), w = weights)
-
-    #  3.2. Global individual effects: estimation
-    #  This is a temporal average effect for each unit -- avg. of individual effects over time
-    global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
-    data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
-    global_ind <- do.call("rbind", global_ind)
-    ta_ind_effects <- merge(global_ind, unique(data_panel[, c("ID", "int_date")]))
-
-    #  3.3. Group-average effects: estimation
-    #  This is an average of individual effects in the pre- and post-intervention across cohorts
-    #  Note that the pre-intervention effects are 'placebo' effects
-    group <- .groupavg_eff(data = data, alpha = alpha, ate_i = ate_i)
-
-    ## 4. Global ATE & individual effects inference
-    #  4.0. m-applying 'boot_ate' to each intervention group
-    ind <- which(colnames(ta_ind_effects) == "int_date")
-    boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
-                                                               datax$int_date <- NULL
-                                                               boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
-                                                               ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag, fe = fe)}, SIMPLIFY = FALSE)
-
-    names(boot_inf) <- paste0("int_", nint)
-
-    #  4.1. Global ATE: confidence interval
-    global_ate_boot <- apply(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))), 1,
-                             FUN = weighted.mean, w = weights)
-    conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
-
-    # 4.2. Global individual effects: confidence interval
-    tempavg_ind <- lapply(boot_inf, FUN = function(x){n <- NROW(x$ate_boot)
-                                                      asvec <- unlist(asplit(x$ind_boot, 1))
-                                                      asarr <- array(asvec, dim = c(nboot, nrow(x$ind_boot)/n ,n))
-                                                      apply(asarr, c(1,2), mean)})
-    conf.tempavg.ind <- lapply(tempavg_ind, FUN = function(x)(apply(x, 2, quantile, probs = c(alpha/2, 1- alpha/2))))
-    conf.tempavg.ind <- t(do.call("cbind", conf.tempavg.ind))
-    conf.tempavg.ind <- data.frame(do.call("rbind", sapply(nint, FUN = function(x)(unique(data_panel[data_panel$int_date == x, c("ID", "int_date")])), simplify = FALSE)),
-                                   conf.tempavg.ind)
-
-    # 4.3. Group-average effects: confidence interval
-    lower <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = alpha/2)))
-    lower <- lower[, order(colnames(lower))]
-    group.lower <- sapply(1:nrow(lower), FUN = function(i)(weighted.mean(lower[i,], w = group$global.weights[i,])))
-    upper <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = 1- alpha/2)))
-    upper <- upper[, order(colnames(upper))]
-    group.upper <- sapply(1:nrow(upper), FUN = function(i)(weighted.mean(upper[i,], w = group$global.weights[i,])))
-    conf.groupavg <- rbind(group.lower, group.upper)
-    colnames(conf.groupavg) <- names(group$groupavg_eff)
-    rownames(conf.groupavg) <- c(alpha/2, 1- alpha/2)
-
-    ## 5. Saving results
-    res <- list(best_method = best, fit = best, global_ate = global_ate, conf.global.ate = conf.global.ate, global_ate_boot = global_ate_boot,
-                tempavg_ind_effects = ta_ind_effects, conf.tempavg.ind = conf.tempavg.ind, group_ate = ate_i, conf.group.ate = boot_inf,
-                groupavg = group$groupavg_eff, conf.groupavg = conf.groupavg)
-    class(res) <- "StagMLCM"
-    return(res)
+    data_panel <- data
 
   } else {
 
-    ## 1. Structuring the panel dataset in the required format
-    if("PanelMLCM" %in% class(data)){
-
-      data_panel <- data
-
-    } else {
-
-      data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
-                                 x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag, fe = fe)
-
-    }
-
-    ## 2. Panel cross-validation
-    if(is.null(PCV)){
-
-      best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
-
-    } else {
-
-      best <- PCV$best
-
-    }
-
-    ## 3. ATE & individual effects estimation
-    effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-    ate <- effects$ate
-    ind_effects <- effects$ind_effects
-    placebo_effects <- effects$placebo_effects
-
-    ## 4. ATE & individual effects inference
-    invisible(capture.output(
-
-      boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
-                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe, placebo.eff = placebo_effects)
-
-    ))
-
-    ## 5. CATE estimation & inference
-    if(CATE){
-
-      cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
-      cate <- cate_effects$cate
-      cate.inf <- cate_effects$cate.inf
-
-    } else {
-
-      cate <- NULL
-      cate.inf <- NULL
-    }
-
-    ## 6. Saving results
-    return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
-                ind.effects = ind_effects, conf.individual = boot_inf$conf.individual,
-                placebo.effects = placebo_effects, conf.placebo = boot_inf$conf.placebo,
-                cate = cate, cate.inf = cate.inf))
+    data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                               x = data[, !(names(data) %in% c(y, id, timevar))], y.lag = y.lag, fe = fe)
 
   }
 
+  ## 2. Panel cross-validation
+  if(is.null(PCV)){
 
+  best <- PanelCrossValidation(data = data_panel, int_date = int_date, pcv_block = pcv_block, metric = metric)$best
 
+  } else {
 
-  ### ATE & individual effects estimation
-  # if(!is.character(int_date)){
-  #
-  #   effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-  #
-  # } else {
-  #
-  #   effects <- ate_est_multi(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
-  #
-  # }
-  #
-  # ate <- effects$ate
-  # ind_effects <- effects$ind_effects
-  #
-  # ### ATE & individual effects inference
-  # invisible(capture.output(
-  #
-  #   boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
-  #                        alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects)
-  #
-  # ))
-  #
-  # ### CATE estimation & inference
-  # if(CATE){
-  #
-  #   cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
-  #   cate <- cate_effects$cate
-  #   cate.inf <- cate_effects$cate.inf
-  #
-  # } else {
-  #
-  #   cate <- NULL
-  #   cate.inf <- NULL
-  # }
-  #
+    best <- PCV$best
+
+  }
+
+  ## 3. ATE & individual effects estimation
+  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  ate <- effects$ate
+  ind_effects <- effects$ind_effects
+  placebo_effects <- effects$placebo_effects
+
+  ## 4. ATE & individual effects inference
+  invisible(capture.output(
+
+  boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+                           alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe, placebo.eff = placebo_effects)
+
+  ))
+
+  ## 5. CATE estimation & inference
+  if(CATE){
+
+    cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
+    cate <- cate_effects$cate
+    cate.inf <- cate_effects$cate.inf
+
+  } else {
+
+    cate <- NULL
+    cate.inf <- NULL
+  }
+
+  ## 6. Saving results
+  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
+              ind.effects = ind_effects, conf.individual = boot_inf$conf.individual,
+              placebo.effects = placebo_effects, conf.placebo = boot_inf$conf.placebo,
+              cate = cate, cate.inf = cate.inf))
+
+}
+
+#' Machine Learning Control Method with staggered adoption
+#'
+#' This function adapts the MLCM approach to a staggered adoption setting. It takes as
+#' input a panel dataset where groups of units are treated or shocked at
+#' different times. It then performs the Panel Cross Validation (PCV) by comparing
+#' the predictive performance of several Machine Learning (ML) methods in the pre-intervention
+#' periods and then outputs the estimated effect of the policy. Three main causal estimands
+#' are computed (see Details) and their confidence intervals are estimated by
+#' bootstrap.
+#'
+#'
+#' @param data        A panel dataset in long form, having one column for the time variable, one column for the units'
+#'                    unique IDs, one column for the outcome variable and one or more columns for the covariates. For staggered
+#'                    adoption settings, the dataset must also have a column for the intervention dates.
+#' @param int_date    Name of the column containing the dates of the interventions.
+#' @param inf_type    Character, type of inference to be performed. Possible choices are 'classic', 'block', 'bc classic', 'bc block', 'bca'. Defaults to 'block'.
+#' @param y           Character, name of the column containing the outcome variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param timevar     Character, name of the column containing the time variable. It can be omitted for \code{PanelMLCM} objects.
+#' @param id          Character, name of the column containing the ID's. It can be omitted for \code{PanelMLCM} objects.
+#' @param y.lag       Optional, number of lags of the dependent variable to include in the model. Defaults to zero.
+#' @param nboot       Number of bootstrap replications, defaults to 1000.
+#' @param pcv_block   Number of pre-intervention times to block for panel cross validation. Defaults to 1, see Details.
+#' @param metric      Character, the performance metric that should be used to select the optimal model.
+#'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
+#' @param default_par List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.
+#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
+#' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
+#'                    95\% confidence interval.
+#' @param fe          Logical, whether to include fixed effects dummy variables. Defaults to false.
+#'
+#' @details
+#'
+#' This function extends the MLCM method in a staggered adoption settings where groups of units are treated or shocked at
+#' different times, e.g., one group of units becomes treated starting from 2022, another group of unit becomes treated
+#' in 2024 and so on. In this case, the \code{data} must include a column with the units' intervention times.
+#'
+#' The target causal estimand is the global ATE estimated as follows: a counterfactual is forecasted for
+#' the units in each treatment group or cohort. If those groups are treated for more than one time period, a temporal average ATE
+#' is calculated for each group and these are averaged together (a weighted average based on group size is used).
+#' The result is the global effect of the policy or shock on all units that were treated.
+#'
+#' In addition, the function computes an ATE for each cohort as well as a group-average effect of the policy at each point
+#' in time following the intervention and the ATEs are averaged across the cohorts by their size (note that if the first cohort
+#' becomed treated in 2022 and the others start being treated from 2023, the group-average ATE in 2022 is just the ATE of the
+#' first cohort).
+
+#'
+#' @return A list with the following components:
+#' \itemize{
+#'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
+#'   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
+#'   on all pre-intervention data
+#'   \item \code{ate} or \code{global_ate}: the estimated ATE
+#'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
+#'   by the user in 'inf_type' (omitted in the staggered case)
+#'   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
+#'   \item \code{ate.boot}: the bootstrap distribution for the ATE
+#'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
+#'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
+#'   estimated by bootstrap
+#' }
+#' @export
+#' @import caret
+#' @importFrom rpart rpart
+#' @importFrom bcaboot bcajack2
+#' @importFrom CAST CreateSpacetimeFolds
+#' @importFrom gbm gbm
+#' @importFrom elasticnet enet
+#' @importFrom pls plsr
+#' @importFrom randomForest randomForest
+#' @importFrom utils capture.output
+#' @importFrom stats quantile
+#' @importFrom stats qnorm
+#' @importFrom stats var
+#' @importFrom stats pnorm
+#' @importFrom stats rnorm
+#' @importFrom stats sd
+#'
+#' @examples
+#'
+#' ### Example 1. Estimating ATE in staggered settings (with default ML methods)
+#'
+#' # Assume the following intervention dates
+#' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
+#' int_year <- rep(int_year_i, each = length(unique(data$year)))
+#'
+#' # Define data_stag
+#' data_stag <- data.frame(int_year, data)
+#'
+#' # Estimation
+#' fit <- StagMLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
+#'             inf_type = "block", nboot = 10, y.lag = 2)
+#'
+#' # Plotting
+#' g <- plot(fit, type = "cohort")
+#' g[[1]] + theme_bc()
+#' g[[2]] + theme_bc()
+StagMLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
+                     default_par = list(gbm = list(depth = c(1,2,3),
+                                                   n.trees = c(500, 1000),
+                                                   shrinkage = seq(0.01, 0.1, by = 0.02),
+                                                   n.minobsinnode = c(10,20)),
+                                        rf = list(ntree = 500),
+                                        pls = list(ncomp = c(1:5)),
+                                        lasso = list(fraction = seq(0.1, 0.9, by = 0.1))),
+                 PCV = NULL, alpha = 0.05, fe = FALSE){
+
+  ### Parameter checks
+
+  ## ATE checks
+  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
+
+  ## 1. Structuring the panel dataset in the required format
+  if("PanelMLCM" %in% class(data)){
+
+     data_panel <- data
+
+  } else {
+
+     data_panel <- as.PanelMLCM(y = data[, y], timevar = data[, timevar], id = data[, id],
+                                 int_date = data[, int_date],
+                                 x = data[, !(names(data) %in% c(y, id, timevar, int_date))],
+                                 y.lag = y.lag, fe = fe)
+  }
+
+  ## 2. Panel cross-validation in staggered settings
+  if(is.null(PCV)){
+
+    best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric, default_par = default_par),
+                   FUN = function(x)(x[["best"]]))
+
+  } else {
+
+    best <- lapply(PCV, FUN = function(x)(x[["best"]]))
+
+  }
+
+  ## 3. Global ATE & individual effects estimation
+  #  3.0. m-applying 'ate_est' to each intervention group
+  nint <- unique(data_panel$int_date)
+  ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
+                                                          datax$int_date <- NULL
+                                                          ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
+  names(ate_i) <- paste0("int_", nint)
+
+  #  3.1. Global ATE: estimation
+  #  This is a temporal average ATE -- avg. of individual effects over both units and times and then averaged across cohorts
+  weights <- sapply(unique(data_panel$int_date), FUN = function(x)(sum(data_panel$int_date == x)))/nrow(data_panel)
+  global_ate <- weighted.mean(sapply(ate_i, FUN = function(x)(mean(x$ate))), w = weights)
+
+  #  3.2. Global individual effects: estimation
+  #  This is a temporal average effect for each unit -- avg. of individual effects over time
+  global_ind <- lapply(ate_i, FUN = function(x){temp.avg <- rowMeans(as.matrix(x$ind_effects[, -1]))
+  data.frame(ID = x$ind_effects[, 1], temp.avg = temp.avg)})
+  global_ind <- do.call("rbind", global_ind)
+  ta_ind_effects <- merge(global_ind, unique(data_panel[, c("ID", "int_date")]))
+
+  #  3.3. Group-average effects: estimation
+  #  This is an average of individual effects in the pre- and post-intervention across cohorts
+  #  Note that the pre-intervention effects are 'placebo' effects
+  group <- .groupavg_eff(data = data_panel, alpha = alpha, ate_i = ate_i)
+
+  ## 4. Global ATE & individual effects inference
+  #  4.0. m-applying 'boot_ate' to each intervention group
+  ind <- which(colnames(ta_ind_effects) == "int_date")
+  boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
+                                                             datax$int_date <- NULL
+                                                             boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
+                                                             ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag, fe = fe)}, SIMPLIFY = FALSE)
+
+  names(boot_inf) <- paste0("int_", nint)
+
+  #  4.1. Global ATE: confidence interval
+  global_ate_boot <- apply(sapply(boot_inf, FUN = function(x)(colMeans(x$ate_boot))), 1,
+                           FUN = weighted.mean, w = weights)
+  conf.global.ate <- quantile(global_ate_boot, probs = c(alpha/2, 1- alpha/2))
+
+  # 4.2. Global individual effects: confidence interval
+  tempavg_ind <- lapply(boot_inf, FUN = function(x){n <- NROW(x$ate_boot)
+                                                    asvec <- unlist(asplit(x$ind_boot, 1))
+                                                    asarr <- array(asvec, dim = c(nboot, nrow(x$ind_boot)/n ,n))
+                                                    apply(asarr, c(1,2), mean)})
+  conf.tempavg.ind <- lapply(tempavg_ind, FUN = function(x)(apply(x, 2, quantile, probs = c(alpha/2, 1- alpha/2))))
+  conf.tempavg.ind <- t(do.call("cbind", conf.tempavg.ind))
+  conf.tempavg.ind <- data.frame(do.call("rbind", sapply(nint, FUN = function(x)(unique(data_panel[data_panel$int_date == x, c("ID", "int_date")])), simplify = FALSE)),
+                                  conf.tempavg.ind)
+
+  # 4.3. Group-average effects: confidence interval
+  lower <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = alpha/2)))
+  lower <- lower[, order(colnames(lower))]
+  group.lower <- sapply(1:nrow(lower), FUN = function(i)(weighted.mean(lower[i,], w = group$global.weights[i,])))
+  upper <- sapply(boot_inf, FUN = function(x)(apply(rbind(x$placebo_boot, x$ate), 1, FUN = quantile, probs = 1- alpha/2)))
+  upper <- upper[, order(colnames(upper))]
+  group.upper <- sapply(1:nrow(upper), FUN = function(i)(weighted.mean(upper[i,], w = group$global.weights[i,])))
+  conf.groupavg <- rbind(group.lower, group.upper)
+  colnames(conf.groupavg) <- names(group$groupavg_eff)
+  rownames(conf.groupavg) <- c(alpha/2, 1- alpha/2)
+
+  ## 5. Saving results
+  cohort_eff <- lapply(1:length(nint), function(i)(list(estimate = c(ate_i[[i]]$placebo_effects, ate_i[[i]]$ate),
+                                          conf.interval = cbind(boot_inf[[i]]$conf.placebo, boot_inf[[i]]$conf.ate))))
+  names(cohort_eff) <- names(boot_inf)
+  Npre <- length(unique(data_panel[data_panel$Time < min(nint), "Time"]))
+
+  res <- list(best_method = best, int_date = unique(data_panel$int_date),
+              global_ate = list(estimate = c(group$groupavg_eff[1:Npre], global_ate = global_ate),
+                                conf.interval = cbind(conf.groupavg[,1:Npre], conf.global.ate), boot = global_ate_boot),
+              tempavg_individual = list(estimate = ta_ind_effects, conf.interval = conf.tempavg.ind),
+              group_ate = cohort_eff,
+              groupavg = list(estimate = group$groupavg_eff, conf.interval = conf.groupavg))
+
+  class(res) <- "StagMLCM"
+  return(res)
 
 }
 
@@ -589,7 +646,10 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
   ### Step 6. Returning the matrix of individual effects, the ATE and the placebo effects
   ind_effects <- cbind(ID = unique(data$ID), ind_effects)
   ind_effects <- ind_effects[order(ind_effects[, "ID"], decreasing = F), ]
-  return(list(ind_effects = ind_effects, ate = colMeans(as.matrix(ind_effects[, -1])),
+  ate <- colMeans(as.matrix(ind_effects[, -1]))
+  names(ate) <- colnames(ind_effects)[-1]
+
+  return(list(ind_effects = ind_effects, ate = ate,
               placebo_effects = placebo_mean))
 }
 
