@@ -117,12 +117,12 @@
 #'             inf_type = "classic", nboot = 10, y.lag = 2)
 #'
 #' # ATE
-#' fit$ate
-#' fit$conf.ate
+#' fit$ate$estimate
+#' fit$ate$conf.interval
 #'
 #' # Individual effects
-#' head(fit$ind.effects)
-#' head(fit$conf.individual)
+#' head(fit$individual$estimate)
+#' head(fit$individual$conf.interval)
 #'
 #' ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
 #'
@@ -135,7 +135,6 @@
 #'             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2, x.cate = x.cate)
 #'
 #' # CATE
-#' fit$cate.inf
 #' plot(fit, type = "cate")
 #'
 MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
