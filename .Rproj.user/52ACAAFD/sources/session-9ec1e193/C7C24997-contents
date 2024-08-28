@@ -1,0 +1,270 @@
+####################################################################
+##                                                                ##
+##  CAUSAL ANALYSES progetto FORTE:  MLCM (only firms that        ##
+##      responded to questionnaires)                              ##
+##                                                                ##
+##  Authors: Veronica Ballerini, Carolina Fiesoli, Giulio Grossi, ##
+##           Fiammetta Menchetti                                  ##
+##                                                                ##
+##  Date last edited : January 2023                               ##
+##                                                                ##
+####################################################################
+
+# Key question: what is the impact of FORTE funds on profitability
+# and employees' efficiency? To answer that, we estimate the
+# effect of the treatment ''receiving FORTE funds'' on some performance
+# measures with the MLCM method (RESPONDENTS ONLY)
+
+# AIM: estimating the effect on 2020 
+# LAGGED OUTCOME: we include Yt-1 and Yt-2 among predictors
+# PRE-INT: 2015-2017 (3 PERIODS)
+
+# Y: RENDIMENTO_DIPENDENTI_2020, EBITDA_2020
+# X: ANNO_COSTITUZIONE (trasformare in anni vita dell'azienda),
+#    FORMA_GIURIDICA
+#    GEO
+#    DM_FEMMINILE
+#    DM_UNDER_50
+#    NO_OF_COMPANIES_IN_CORPORATE_GROUP
+#    DIPENDENTI_*                   (time-varying)
+#    COSTO_LAVORO_PER_ADDETTO_EUR_* (time-varying)
+#    COSTI_RICERCA_PUBB_EUR_*       (time-varying)
+#    DIRITTI_BREVETTO_IND_*         (time-varying)
+#    TOTALE_IMMOB_IMM_*             (time-varying)
+#    FORMAZIONE                     (time- and unit-varying)
+
+# N.B. We want to include the variables from the questionnaires measuring
+# whether the firm has done some training and how it was financed. This variable
+# takes values from 2015 to 2020, so the pre-intervention period is restricted
+# and we can do only 1 PCV step. In addition, no causal effect can be computed in 2021
+
+rm(list = ls())
+wd <- "C:/Users/Menchetti/Documents/FORTE/Replication Package"
+setwd(wd)
+
+###################################################################
+# 0. Loading data, libraries & custom functions 
+###################################################################
+
+### Data
+data <- read.csv(paste0(wd, "/Data/aida_merged_quest_07112023.csv"), sep = ",")
+istat<- read.csv(paste0(wd, "/Data/dati_istat.csv"), sep = ";")
+
+### Libraries
+library(ggplot2)        # plots
+library(grid)           # additional options (e.g., change title size) for gridExtra
+library(gridExtra)      # arranging multiple ggplots
+library(MachineControl) # causal effect estimation
+
+### Custom functions 
+source(paste0(wd, "/Functions/Generic_Fun.R"))
+source(paste0(wd, "/Functions/Causal_Fun.R"))
+source(paste0(wd, "/Functions/Plotting_Fun.R"))
+
+### Check class
+cl <- check_class(data) # Check OK, there are no num variables classified as char.
+
+### MachineControl settings
+int_date <- 2018
+pcv_block <- 2
+y.lag <- 2
+nboot <- 2
+gbmGrid <-  expand.grid(interaction.depth = c(1, 2), 
+                        n.trees=c(1000, 2000), 
+                        shrinkage = c(0.001, 0.002),
+                        n.minobsinnode = c(5, 10))
+bo <- list(method = "gbm",
+           tuneGrid = gbmGrid)
+pls <- list( method = "pls",
+             tuneGrid = expand.grid(ncomp = c(1:10)),
+             preProc=c("center", "scale"))
+rf <- list(method = "rf",
+           search = "grid",
+           tuneGrid = expand.grid(mtry = 2:5),
+           ntree=500)
+ML_methods <- list(pls, rf)
+ML_methods_2 <- list(pls, rf, bo)
+
+###################################################################
+# 0. Imputation 
+###################################################################
+
+# We impute the PRE-INTERVENTION missing data of the j-th company with the observed average 
+# of other companies having the same number of employees and the same geographical
+# area as the j-th company
+
+### Y and X columns for the final analysis
+cols <- c("ID", "ANNO_COSTITUZIONE2","CLAADD", "FORMA_GIURIDICA", "GEO", "DM_FEMMINILE", "DM_UNDER_50",
+          "NO_OF_COMPANIES_IN_CORPORATE_GROUP", "TREAT",
+          grep(colnames(data), pattern = "^RENDIMENTO_DIPENDENTI_\\d", value = T),
+          grep(colnames(data), pattern = "^EBITDA_EUR_\\d", value = T),
+          grep(colnames(data), pattern = "^DIPENDENTI_\\d", value = T),
+          grep(colnames(data), pattern = "COSTO_LAVORO_PER_ADDETTO_EUR_", value = T),
+          grep(colnames(data), pattern = "COSTI_RICERCA_PUBB_EUR_", value = T),
+          grep(colnames(data), pattern = "DIRITTI_BREVETTO_IND_", value = T),
+          grep(colnames(data), pattern = "TOTALE_IMMOB_IMMATERIALI_", value = T))
+
+### Checking NAs
+
+# Step 1: Remove from the analysis firms with TREAT = NA (the training has not finished by 2020)
+data <- data[!is.na(data$TREAT), ]
+
+# Step 2: Impute PRE-INT missings from both X and Y, selecting cols to impute
+#   (removing Y.2020 and Y.2021 but also Y.2010 and Y.2011, as the pre-int starts in 2013, so no need
+#    to impute their NAs, they will be eliminated later on)  
+to_remove <- c(paste0(rep(c("RENDIMENTO_DIPENDENTI_","EBITDA_EUR_"), each = 2), c(2020,2021)),
+               grep(cols, pattern = "_2010", value = T), grep(cols, pattern = "_2011", value = T))
+to_impute <- setdiff(cols, to_remove) 
+nas <- check_NA(data[, to_impute])
+tab_nas <- data.frame(NUM.NAS = nas$na, PROP.NAS = round(100*nas$na.pp, digits = 1))
+# write.table(tab_nas, "NAS.csv", sep =",")
+
+# Results: the table reveals that DIRITTI_BREVETTO_IND and COSTI_RICERCA_PUBB have more than
+# 50% of missing observations. We decide to eliminate those variables from our final dataset
+# (and from the imputation exercise)
+cols <- setdiff(cols, c(grep(cols, pattern = "BREVETTO", value = T), grep(cols, pattern = "RICERCA", value = T)))
+to_impute <- setdiff(to_impute, c(grep(to_impute, pattern = "BREVETTO", value = T), grep(to_impute, pattern = "RICERCA", value = T)))
+numX_varying <- length(unique(grep(to_impute, pattern = "_2012"))) # number of time-varying variables
+
+### Step 3: Imputing
+nas <- check_NA(data[, to_impute])
+data <- impute_mean(data = data, cols = to_impute[which(nas$na != 0)], strati = c("CLAADD", "GEO"))
+
+### Step 4: Checks
+check_NA(data[, cols])$na
+if(sum(check_NA(data[, to_impute])$na) > 0) stop("Something went wrong during imputation, there are still some NAs")
+
+###################################################################
+# 1. Building the analysis dataset
+###################################################################
+
+### 1.1. Reduced Dataset (only the outcomes and the needed covariates of the RESPONDENTS)
+data_red <- data[, c("QUESTIONARIO", cols)]
+data_red <- data_red[data_red$QUESTIONARIO == 1, ]
+data_red$QUESTIONARIO <- NULL
+
+### 1.2. Reshaping 
+data_long <- reshape(data_red, direction = "long", varying = split(cols[-c(1:9)], rep(seq(1:numX_varying), each = 12)),
+                     v.names = unique(gsub(cols[-c(1:9)], pattern = "_\\d+", replacement = "")),
+                     timevar = "Year", times = seq(from = 2010, to = 2021, by = 1), idvar = "ID")
+
+### 1.3. Merging with Istat data
+data_long <- merge(data_long, istat, by = "Year")
+
+### 1.4. Adding D13 variables among covariates (reshaping & merging)
+names <- grep(colnames(data), pattern = "D13", value = T)
+names<- names[order(names)]
+varying <- split(names, rep(1:6, each = 6))
+v.names <- sapply(varying, FUN = function(x)(unique(gsub(x, pattern = "_\\d{4}", replacement = ""))))
+form <- reshape(data[, c(names, "ID")], direction = "long", varying = varying, v.names = v.names, timevar = "Year", 
+                 times = seq(2015, 2020, by = 1), idvar = "ID") # i NA sono residuals NAs?
+data_long <- merge(data_long, form, by = c("ID", "Year"))
+data_long <- data_long[order(data_long$ID), ]
+
+### 1.5. Variables in thousands 
+ind <- c("COSTO_LAVORO_PER_ADDETTO_EUR", "EBITDA_EUR", "TOTALE_IMMOB_IMMATERIALI_EUR")
+data_long[, ind] <- apply(data_long[, ind], 2, FUN = function(x)(x/1000))
+
+### 1.6. Checking class (defining factor variables)
+cl <- check_class(data_long)
+# table(data_red$FORMA_GIURIDICA)
+data_long$FORMA_GIURIDICA <- gsub(data_long$FORMA_GIURIDICA, pattern ="S.P.A. a socio unico", replacement = "S.P.A.")
+data_long$FORMA_GIURIDICA <- gsub(data_long$FORMA_GIURIDICA, pattern =" a capitale ridotto", replacement = "")
+data_long$FORMA_GIURIDICA <- gsub(data_long$FORMA_GIURIDICA, pattern =" semplificata", replacement = "")
+data_long[, c(cl$character$names)] <- as.data.frame(lapply(data_long[, c(cl$character$names)], FUN = as.factor))
+cl<- check_class(data_long)
+cl$factor$names
+cl$character$chr
+
+### 1.7. Transform 'ANNO_COSTITUZIONE' into 'NUM_YEARS_ACTIVITY'
+data_long$NUM_YEARS_ACTIVITY <- 2020- data_long$ANNO_COSTITUZIONE2
+data_long$ANNO_COSTITUZIONE2 <- NULL
+
+### 1.8. The Y for control units is considered as a contemporaneous covariate, so it must be 
+### among the X's. This can be arranged as follows:
+
+# step 1: define a new dataset with only treated units
+data_long_treat <- data_long[data_long$TREAT==1,]
+data_long_treat$TREAT <- NULL
+
+# step 2: calculate avg Y values for controls by geo & claad 
+strati <- c("GEO", "CLAADD")
+sub <- do.call(expand.grid, apply(data[, strati], 2, unique))
+sub <- apply(sub, 1, as.character)
+X <- data[data_red$TREAT == 0, ]
+pat <- c(grep(colnames(data_red), pattern = "RENDIMENTO_DIPENDENTI", value = T),
+         grep(colnames(data_red), pattern = "EBITDA", value = T))
+mat <- sapply(pat, FUN = function(x)(
+  
+  mean.vec <- sapply(1:ncol(sub), FUN = function(i){
+    ind <- which(apply(X[, strati], 1, function(j) all(j %in% sub[,i])))
+    mean(X[ind, x], na.rm = T)
+  })
+  
+))
+
+mat <- data.frame(mat, GEO = sub[1,], CLAADD =  sub[2,])
+
+# Step 3: reshaping 'mat' from wide to long 
+mat_long <- reshape(mat, direction = "long", varying = split(pat, rep(seq(1:2), each = 12)), 
+                    v.names = c("REND_DIP_X", "EBITDA_X"),
+                    timevar = "Year", times = seq(from = 2010, to = 2021, by = 1))
+mat_long$id <- NULL
+
+# Step 4: Merging with data_long_treat
+data_long_treat <- merge(data_long_treat, mat_long, by = c("Year", "GEO", "CLAADD"))
+data_long_treat <- data_long_treat[order(data_long_treat$ID),]
+
+###################################################################
+# 2. Causal impact on RENDIMENTO_DIPENDENTI 
+################################################################### 
+
+### 2.1. Data definition
+data1 <- data_long_treat
+data1$EBITDA_EUR <- NULL
+
+### 2.2. Check NA's: remove firms having NA's in 2020 
+ind <- which(is.na(data1[data1$Year == 2020, "RENDIMENTO_DIPENDENTI"]))
+data1 <- data1[!data1$ID %in% unique(data1[, "ID"])[ind], ]
+if(sum(check_NA(data1)$na) > 0) stop("There are some NAs, something went wrong during the imputation")
+
+### 2.3. Evaluating 2020 impact with MachineControl
+
+# Data
+newdata <- as.PanelMLCM(y = data1[, "RENDIMENTO_DIPENDENTI"], timevar = data1[, "Year"], id = data1[, "ID"],
+                        x = data1[, !(names(data1) %in% c("RENDIMENTO_DIPENDENTI", "ID", "Year"))], y.lag = y.lag)
+# Panel Cross Validation
+pcv <- PanelCrossValidation(data = newdata, int_date = int_date, pcv_block = pcv_block, ML_methods = ML_methods_2)
+
+# Estimation
+causal <- MLCM(data = newdata, int_date = int_date, inf_type = "block", PCV = pcv$best, nboot = nboot, CATE = FALSE)
+
+# Saving
+saveRDS(list(causal = causal, PCV = pcv), paste0(wd,"/ATETXQUEST_REND_DIP.RDS"))
+
+###################################################################
+# 3. Causal impact on EBITDA 
+###################################################################
+
+### 3.1. Data definition
+data1 <- data_long_treat
+data1$RENDIMENTO_DIPENDENTI <- NULL
+
+### 3.2. Check NA's: remove firms having NA's in 2020 
+ind <- which(is.na(data1[data1$Year == 2020, "EBITDA_EUR"]))
+data1 <- data1[!data1$ID %in% unique(data1[, "ID"])[ind], ]
+if(sum(check_NA(data1)$na) > 0) stop("There are some NAs, something went wrong during the imputation")
+
+### 3.3. Evaluating 2020 impact with MachineControl
+
+# Data
+newdata <- as.PanelMLCM(y = data1[, "EBITDA_EUR"], timevar = data1[, "Year"], id = data1[, "ID"],
+                        x = data1[, !(names(data1) %in% c("EBITDA_EUR", "ID", "Year"))], y.lag = y.lag)
+# Panel Cross Validation
+pcv <- PanelCrossValidation(data = newdata, int_date = int_date, pcv_block = pcv_block, ML_methods = ML_methods_2)
+
+# Estimation
+causal <- MLCM(data = newdata, int_date = int_date, inf_type = "block", PCV = pcv$best, nboot = nboot, CATE = FALSE)
+
+# Saving
+saveRDS(list(causal = causal, PCV = pcv), paste0(wd,"/ATETXQUEST_EBITDA.RDS"))

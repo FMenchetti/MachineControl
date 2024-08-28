@@ -8,6 +8,57 @@
 ##
 ###############################################################################
 
+#' Plot of estimated causal effects
+#'
+#'
+#' @param x     Object returned from a previous call to \code{MLCM()}
+#' @param type  Character string indicating the plot to be produced. Possible values
+#'              in \code{c("ate", "cate")}
+#' @param ...   Optional arguments from the \code{rpart.plot()} function to be used while
+#'              plotting the regression tree. See \code{help(rpart.plot)} for details.
+#' @details
+#' The option \code{"ate"} plots the ATE at each point in time after the intervention.
+#' Note that the effects plotted before the introduction of the policy are placebo effects (they
+#' should be non-significant effects centered around zero otherwise either the intervention has
+#' some anticipation effects or the model is misspecified). The option \code{"cate"} draws
+#' the estimated regression tree using the \code{rpart.plot()} function from the \code{rpart.plot}
+#' package. Users can use the \code{...} argument for full flexibility in drawing CATE regression
+#' by exploiting all arguments of \code{rpart.plot()}.
+#'
+#'
+#' @return NULL, invisibly
+#' @export
+#' @importFrom rpart.plot rpart.plot
+#'
+plot.MLCM <- function(x, type = c("ate", "cate"), ...){
+
+  # Param checks
+  if(class(x) != "MLCM") stop("this function is a plotting method for 'MLCM' objects")
+  if(!all(type %in% c("ate", "cate")))
+    stop("allowed 'type' values are 'ate' or 'cate'")
+
+  # ATE
+  if("ate" %in% type){
+
+    ate <- .plot_effects(x$ate, int_date = x$int_date) +
+      ggtitle("ATE")
+
+  } else {ate <- NULL}
+
+
+  # CATE
+
+  if("cate" %in% type){
+
+    cate <- lapply(1:length(x$cate), function(i)(rpart.plot(x$cate[[i]], main = paste("CATE,", names(x$cate)[i]), ...)))
+
+  } else {cate <- NULL}
+
+  # Returning results
+  res <- list(ate = ate, cate = cate)
+  return(res)
+}
+
 #' Plot of estimated causal effects in staggered adoption setting
 #'
 #'

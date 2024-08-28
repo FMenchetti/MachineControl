@@ -67,13 +67,9 @@ same covariates used to estimate ATE will be used. See Details.}
 A list with the following components:
 \itemize{
   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
-  \item \code{fit}: the final result of the training step of the best-performing ML algorithm
-  on all pre-intervention data
-  \item \code{ate} or \code{global_ate}: the estimated ATE
-  \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-  by the user in 'inf_type' (omitted in the staggered case)
-  \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
-  \item \code{ate.boot}: the bootstrap distribution for the ATE
+  \item \code{int_date}: the intervention date
+  \item \code{ate}: a list with the estimated ATE and its confidence interval
+  \item \code{individual}: a list with the estimated individual effects and their confidence intervals
   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
   estimated by bootstrap
@@ -155,5 +151,6 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
 
 # CATE
 fit$cate.inf
+plot(fit, type = "cate")
 
 }

@@ -84,13 +84,9 @@
 #' @return A list with the following components:
 #' \itemize{
 #'   \item \code{best_method}: the best-performing ML algorithm as selected by the PCV routine
-#'   \item \code{fit}: the final result of the training step of the best-performing ML algorithm
-#'   on all pre-intervention data
-#'   \item \code{ate} or \code{global_ate}: the estimated ATE
-#'   \item \code{var.ate}: the variance of ATE as estimated by the bootstrap algorithm selected
-#'   by the user in 'inf_type' (omitted in the staggered case)
-#'   \item \code{conf.ate}: a (1-\code{alpha})\% bootstrap confidence interval
-#'   \item \code{ate.boot}: the bootstrap distribution for the ATE
+#'   \item \code{int_date}: the intervention date
+#'   \item \code{ate}: a list with the estimated ATE and its confidence interval
+#'   \item \code{individual}: a list with the estimated individual effects and their confidence intervals
 #'   \item \code{cate}: a list of class \code{rpart} with the estimated regression-tree-based CATE
 #'   \item \code{cate.inf}: a matrix containing the variance of CATE and the confidence interval
 #'   estimated by bootstrap
@@ -140,6 +136,7 @@
 #'
 #' # CATE
 #' fit$cate.inf
+#' plot(fit, type = "cate")
 #'
 MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                  default_par = list(gbm = list(depth = c(1,2,3),
@@ -215,10 +212,14 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
   }
 
   ## 6. Saving results
-  return(list(best_method = best, fit = best, ate = ate, var.ate = boot_inf$var.ate, conf.ate = boot_inf$conf.ate, ate.boot = boot_inf$ate_boot,
-              ind.effects = ind_effects, conf.individual = boot_inf$conf.individual,
-              placebo.effects = placebo_effects, conf.placebo = boot_inf$conf.placebo,
-              cate = cate, cate.inf = cate.inf))
+  res <- list(best_method = best,
+              int_date = int_date,
+              ate = list(estimate = c(placebo_effects, ate), conf.interval = cbind(boot_inf$conf.placebo, boot_inf$conf.ate),
+                         ate.boot = boot_inf$ate_boot),
+              individual = list(estimate = ind_effects, conf.interval = boot_inf$conf.individual),
+              cate = cate, cate.inf = cate.inf)
+  class(res) <- "MLCM"
+  return(res)
 
 }
 
@@ -694,11 +695,12 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 
   ### Step 3. CATE estimation & inference
   cate <- lapply(unique(postimes), FUN = function(x){
-    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0, minbucket = 0.05*length(unique(data$ID)))})
+    rpart(effect ~ ., method="anova", data = data_cate[data_cate$Time == x, -1], cp = 0,
+          minbucket = 0.05*length(unique(data$ID)), model = TRUE)})
   mat <- data.frame(postimes, c(t(ind_effects[,-1])))
   cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
     boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
-  names(cate.inf) <- unique(postimes)
+  names(cate) <- names(cate.inf) <- unique(postimes)
 
   ### Step 4. Returning estimated CATE
   return(list(cate = cate, cate.inf = cate.inf))
