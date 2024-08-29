@@ -132,12 +132,12 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
             inf_type = "classic", nboot = 10, y.lag = 2)
 
 # ATE
-fit$ate
-fit$conf.ate
+fit$ate$estimate
+fit$ate$conf.interval
 
 # Individual effects
-head(fit$ind.effects)
-head(fit$conf.individual)
+head(fit$individual$estimate)
+head(fit$individual$conf.interval)
 
 ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
 
@@ -150,7 +150,6 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
             inf_type = "classic", nboot = 10, CATE = TRUE, y.lag = 2, x.cate = x.cate)
 
 # CATE
-fit$cate.inf
 plot(fit, type = "cate")
 
 }
