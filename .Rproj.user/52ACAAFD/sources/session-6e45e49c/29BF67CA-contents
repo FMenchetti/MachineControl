@@ -29,7 +29,7 @@
 #' @return NULL, invisibly
 #' @export
 #' @importFrom rpart.plot rpart.plot
-#'
+#' @importFrom ggplot2 ggtitle
 plot.MLCM <- function(x, type = c("ate", "cate"), ...){
 
   # Param checks
@@ -78,7 +78,7 @@ plot.MLCM <- function(x, type = c("ate", "cate"), ...){
 #'
 #' @return NULL, invisibly
 #' @export
-#'
+#' @importFrom ggplot2 ggtitle
 plot.StagMLCM <- function(x, type = c("global", "cohort", "time")){
 
   # Param checks
@@ -126,7 +126,15 @@ plot.StagMLCM <- function(x, type = c("global", "cohort", "time")){
 #'
 #' @return NULL, invisibly
 #' @noRd
-#'
+#' @importFrom ggplot2 ggplot
+#' @importFrom ggplot2 geom_point
+#' @importFrom ggplot2 geom_errorbar
+#' @importFrom ggplot2 geom_hline
+#' @importFrom ggplot2 scale_color_manual
+#' @importFrom ggplot2 labs
+#' @importFrom ggplot2 xlab
+#' @importFrom ggplot2 ylab
+#' @importFrom ggplot2 theme_bw
 .plot_effects <- function(x, int_date){
 
   # Param checks
