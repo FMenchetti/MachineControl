@@ -1,26 +1,27 @@
 {
-    "id": "0210C8EA",
-    "path": "~/GitHub/MLCM/R/mlcm.R",
-    "project_path": "R/mlcm.R",
+    "id": "CC1ECAE7",
+    "path": "~/GitHub/MLCM/R/simulate.R",
+    "project_path": "R/simulate.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1677688588084.0,
+    "created": 1724940642861.0,
     "source_on_save": false,
-    "relative_order": 1,
+    "relative_order": 9,
     "properties": {
+        "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "8,79",
-        "scrollLine": "0"
+        "cursorPosition": "116,0",
+        "scrollLine": "21"
     },
     "folds": "",
-    "lastKnownWriteTime": 1724864007,
+    "lastKnownWriteTime": 1724944156,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1724864007362,
+    "last_content_update": 1724944156262,
     "read_only": false,
     "read_only_alternatives": []
 }
