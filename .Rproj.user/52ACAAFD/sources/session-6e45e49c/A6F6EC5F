@@ -1,0 +1,27 @@
+{
+    "id": "A6F6EC5F",
+    "path": "~/GitHub/MLCM/R/simulate.R",
+    "project_path": "R/simulate.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1724953160570.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "47,58",
+        "scrollLine": "37"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1724953658,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1724953658565,
+    "read_only": false,
+    "read_only_alternatives": []
+}
