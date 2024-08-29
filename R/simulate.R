@@ -9,58 +9,49 @@
 ###############################################################################
 
 # This script contains internal functions used to generate the exported 'data'.
-# Additional details on data generation can also be found in the script [INCLUDE
-# REFERENCE TO THE SCRIPT FILE]
+# Additional details on data generation can also be found in the script
+# 'DATASET.R' in the 'data-raw' folder
 
 
-
-
-# If 'linear = TRUE', the function generates a panel of N units from the model
-# Yit = rho*Yt-1 + beta*Xt-1 + eps_it, eps_it ~ iid(0, sigma). If 'linear = FALSE'
-# the function generates a panel dataset of N units from the following non-linear model
-
-#' Simulate from a simple ARDL(p,q)
+#' Simulate from a simple ARDL(1,1)
+#'
+#' This function encloses the DGP for the exported data. If 'linear = TRUE',
+#' it generates a panel of N units from the model: Yit = rho*Yt-1 + beta*Xt-1 + eps_it,
+#' where eps_it ~ iid(0, sigma). If 'linear = FALSE' the function generates a panel dataset
+#' of N units from the following non-linear model: Y_it = sin(rho*Yt-1 + beta*Xt-1) + eps_it.
+#'
 #'
 #' @param seed              Numeric, random seed
 #' @param X                 List of covariates
 #' @param beta              Numeric vector of coefficients for 'X'
-#' @param ar1_coef
+#' @param ar1_coef          Numeric, autoregressive coefficient
 #' @param N                 Number of units in the panel
 #' @param sigma             Standard deviation of the error term
 #' @param impact            Numeric vector of fictional additive causal effects
 #' @param impact_constant   Logical, if \code{TRUE} the values in \code{impact} are additive constant effects
 #'                          otherwise they are first scaled by the standard deviation of the outcome
-#' @param ylag              Logical [ADD DETAILS]
-#' @param xlag              Logical [ADD DETAILS]
 #' @param linear            Logical, defaults to \code{TRUE}. Set to \code{FALSE} for nonlinear specification
 #' @param post_per          Number of post-intervention periods after the intervention date which, by default,
 #'                          is included in the post-int period. So, for a single post-intervention, set \code{post_per = 0}
 #'
-#' @return
+#' @return                  A list with two components: \code{dat} (the generated dataset) and \code{true_ate}
+#'                          (the true ATE, as results from the simulated effects added in the data)
 #' @noRd
 #'
-.sim_ardl <- function(seed, X, beta, ar1_coef, N, sigma, impact, impact_constant, ylag, xlag, linear = TRUE, post_per){
+.sim_ardl <- function(seed, X, beta, ar1_coef, N, sigma, impact, impact_constant, post_per, linear = TRUE){
 
   # Param checks
   if(!is.numeric(seed) | seed < 0 ) stop (" 'seed' must be a number greater than 0") # include test in testthat
   if(!is.list(X)) stop(" 'X' must be a list") # testthat it works with both
   if(!is.numeric(beta)) stop (" 'beta' must be numeric") # test with testthat
-  # CHECK AR COEF
-  if(!is.integer(N) | N < 0) stop (" 'N' must be an integer") # test with testthat
+  if(!is.numeric(ar1_coef)) stop (" 'ar1_coef' must be numeric ")
+  if(N %% 1 != 0 | N < 0) stop (" 'N' must be an integer") # test with testthat
   if(!is.numeric(impact) | length(impact) != post_per +1) stop ("'impact' is non-numeric or it doesn't match 'post_per' ")
-  if(all(sapply(list(impact_constant, ylag, xlag, linear), is.logical))) stop ("supplied non-logical values to logical parameters")
+  if(!all(sapply(list(impact_constant, linear), is.logical))) stop ("supplied non-logical values to logical parameters")
 
   # Settings
   set.seed(seed)
   t <- NROW(X[[1]])
-
-  # Do we want different covariates'values for different units?
-  # if(varying){
-
-  #  ran <- lapply(1:N, FUN = mvrnorm, n = NROW(X) , mu = rep(1, ncol(X)), Sigma = 0.1*diag(1, nrow = ncol(X), ncol = ncol(X)))
-  #  X <- lapply(ran, function(x)(x + X))
-
-  # }
 
   # Generating eps_it.
   eps_it <- lapply(1:N, function(x)(rnorm(n = t, mean = 0, sd = sigma)))
@@ -88,22 +79,13 @@
   # Dataset in long format
   dat <- data.frame(ID = rep(1:N, each = t),
                     Y = unlist(Yt),
-                    Xlag1 = do.call(rbind, lapply(X, function(x)(apply(x,2, .true_lag)))),
-                    # X = do.call(rbind, X),
+                    # Xlag1 = do.call(rbind, lapply(X, function(x)(apply(x,2, .true_lag)))),
+                    X = do.call(rbind, X),
                     year = rep(seq(2020-t+1,2020), times = N))
-  # if(ylag){
-  #
-  #   # Lagged dependent variable
-  #   dat$Ylag1 <- unlist(lapply(Yt, FUN = .true_lag))
-  #   ind <- which(is.na(dat$Ylag1))
-  #
-  # } else {
-  #
-  #   ind <- which(is.na(dat$Xlag1.x1))
-  #
-  # }
+  colnames(dat) <- gsub(colnames(dat), pattern = ".x", replacement = ".")
 
   # Removing initial NAs
+  # ind <- which(is.na(data$Xlag1.x1))
   # dat <- dat[-ind, ]
 
   # Returning results (dataset + true ATE)
@@ -114,14 +96,22 @@
 }
 
 
-
-####### Auxiliary functions, used in 'sim_ardl'
-
+#' Auxiliary function, used in '.sim_ardl()'
+#'
+#' This function generates Yt for a single unit, starting from its covariates 'X'
+#' the given autoregressive coefficient and the error terms 'eps' (eps can include the
+#' individual heterogeneity)
+#'
+#' @param beta       Numeric vector of coefficients for 'X'
+#' @param X          Matrix of covairates
+#' @param eps        Numeric, simulated error terms
+#' @param ar1_coef   Numeric, autoregressive coefficient
+#' @param linear     Logical, defaults to \code{TRUE}.
+#'
+#' @return           Numerical vector, generated time series from the ARDL (linear or non-linear) model
+#' @noRd
+#'
 .y_recursive <- function(beta, X, eps, ar1_coef, linear){
-
-  ## This function generates Yt for one unit, starting from its covariates 'X'
-  ## the given autoregressive coef and the error terms 'eps' (eps can include the
-  ## individual heterogeneity)
 
   # Settings
   Yt <- c()
