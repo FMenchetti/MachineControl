@@ -310,14 +310,14 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' data_stag <- data.frame(int_year, data)
 #'
 #' # Estimation
-#' fit <- StagMLCM(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
+#' fit <- MLCMStag(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
 #'             inf_type = "block", nboot = 10, y.lag = 2)
 #'
 #' # Plotting
 #' g <- plot(fit, type = "cohort")
 #' g[[1]] + theme_bc()
 #' g[[2]] + theme_bc()
-StagMLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
+MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                      default_par = list(gbm = list(depth = c(1,2,3),
                                                    n.trees = c(500, 1000),
                                                    shrinkage = seq(0.01, 0.1, by = 0.02),
@@ -431,7 +431,7 @@ StagMLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
               group_ate = cohort_eff,
               groupavg = list(estimate = group$groupavg_eff, conf.interval = conf.groupavg))
 
-  class(res) <- "StagMLCM"
+  class(res) <- "MLCMStag"
   return(res)
 
 }

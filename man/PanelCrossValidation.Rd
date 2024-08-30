@@ -97,7 +97,7 @@ pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg, pls))
 
 causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
-               nboot = 10, CATE = FALSE)
+               nboot = 10, CATE = FALSE, y.lag = 2)
 
 causal$estimate$ate
 causal$estimate$conf.ate

@@ -62,7 +62,7 @@ plot.MLCM <- function(x, type = c("ate", "cate"), ...){
 #' Plot of estimated causal effects in staggered adoption setting
 #'
 #'
-#' @param x     Object returned from a previous call to \code{StagMLCM()}
+#' @param x     Object returned from a previous call to \code{MLCMStag()}
 #' @param type  Character string indicating the plot to be produced. Possible values
 #'              in \code{c("global", "cohort", "time")}
 #' @details
@@ -79,10 +79,10 @@ plot.MLCM <- function(x, type = c("ate", "cate"), ...){
 #' @return NULL, invisibly
 #' @export
 #' @importFrom ggplot2 ggtitle
-plot.StagMLCM <- function(x, type = c("global", "cohort", "time")){
+plot.MLCMStag <- function(x, type = c("global", "cohort", "time")){
 
   # Param checks
-  if(class(x) != "StagMLCM") stop("this function is a plotting method for 'StagMLCM' objects")
+  if(class(x) != "MLCMStag") stop("this function is a plotting method for 'MLCMStag' objects")
   if(!all(type %in% c("global", "cohort", "time")))
     stop("allowed 'type' values are 'global', 'cohort' and 'time'")
 
@@ -121,7 +121,7 @@ plot.StagMLCM <- function(x, type = c("global", "cohort", "time")){
 
 #' Internal function for plotting
 #'
-#' @param x         Object returned from a previous call to \code{MLCM()} or \code{StagMLCM()}
+#' @param x         Object returned from a previous call to \code{MLCM()} or \code{MLCMStag()}
 #' @param int_date  Intervention date (or dates in case of staggered adoption of the policy)
 #'
 #' @return NULL, invisibly
@@ -138,7 +138,7 @@ plot.StagMLCM <- function(x, type = c("global", "cohort", "time")){
 .plot_effects <- function(x, int_date){
 
   # Param checks
-  # if(class(x) != "StagMLCM") stop("this function is a plotting method for 'StagMLCM' objects")
+  # if(class(x) != "MLCMStag") stop("this function is a plotting method for 'MLCMStag' objects")
 
   # Step 1. Creating a dataframe
   df <- data.frame(times = names(x$estimate), y = x$estimate, lower = x$conf.interval[1,],

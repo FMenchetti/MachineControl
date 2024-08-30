@@ -65,6 +65,6 @@ newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id 
 pcv_multi <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 
 # ATE estimation
-causal <- StagMLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi)
+causal <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi, y.lag = 2)
 
 }

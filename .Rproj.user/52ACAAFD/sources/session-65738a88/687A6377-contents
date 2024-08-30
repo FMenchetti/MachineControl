@@ -97,7 +97,7 @@
 #'                             ML_methods = list(enet, linreg, pls))
 #'
 #' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
-#'                nboot = 10, CATE = FALSE)
+#'                nboot = 10, CATE = FALSE, y.lag = 2)
 #'
 #' causal$estimate$ate
 #' causal$estimate$conf.ate
@@ -275,7 +275,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' pcv_multi <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 #'
 #' # ATE estimation
-#' causal <- StagMLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi)
+#' causal <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi, y.lag = 2)
 #'
 PanelCrossValidationStag <- function(data, pcv_block = 1, metric = "RMSE",
                                      default_par = list(gbm = list(depth = c(1,2,3),
