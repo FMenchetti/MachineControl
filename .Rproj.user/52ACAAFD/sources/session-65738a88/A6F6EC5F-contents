@@ -42,10 +42,10 @@
 
   # Param checks
   if(!is.numeric(seed) | seed < 0 ) stop (" 'seed' must be a number greater than 0") # include test in testthat
-  if(!is.list(X)) stop(" 'X' must be a list") # testthat it works with both
-  if(!is.numeric(beta)) stop (" 'beta' must be numeric") # test with testthat
+  if(!is.list(X)) stop(" 'X' must be a list")
+  if(!is.numeric(beta)) stop (" 'beta' must be numeric")
   if(!is.numeric(ar1_coef)) stop (" 'ar1_coef' must be numeric ")
-  if(N %% 1 != 0 | N < 0) stop (" 'N' must be an integer") # test with testthat
+  if(N %% 1 != 0 | N < 0) stop (" 'N' must be an integer")
   if(!is.numeric(impact) | length(impact) != post_per +1) stop ("'impact' is non-numeric or it doesn't match 'post_per' ")
   if(!all(sapply(list(impact_constant, linear), is.logical))) stop ("supplied non-logical values to logical parameters")
 

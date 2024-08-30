@@ -24,7 +24,7 @@
 #' @param trControl Optional, used to customize the training step. It must be the output from a call to \code{trainControl} from the \code{caret} package.
 #' @param ML_methods Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 #'                   as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
-#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'
+#'                   and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.
 #' @return A list containing the following objects:
 #' \itemize{
 #'   \item \code{best}: the best-performing ML algorithm
@@ -81,7 +81,7 @@
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 #'
 #' ### Example 2. Changing ML methods and estimating ATE
-#'
+#' set.seed(1)
 #' enet <- list(method = "enet",
 #'             tuneGrid = expand.grid(
 #'               fraction = seq(0.1, 0.9, by = 0.1),
@@ -91,14 +91,16 @@
 #'               tuneGrid = expand.grid(
 #'                 intercept = seq(0, 10, by = 0.5)))
 #'
+#' pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+#'
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
-#'                             ML_methods = list(enet, linreg))
+#'                             ML_methods = list(enet, linreg, pls))
 #'
 #' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
 #'                nboot = 10, CATE = FALSE)
 #'
-#' causal$ate
-#' causal$conf.ate
+#' causal$estimate$ate
+#' causal$estimate$conf.ate
 
 PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                                  default_par = list(gbm = list(depth = c(1,2,3),
@@ -255,6 +257,7 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' @examples
 #'
 #' ### Example 1. Using the default ML methods in a staggered setting
+#' set.seed(1)
 #'
 #' # Assume the following intervention dates
 #' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
@@ -268,14 +271,14 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #'                         int_date = data_stag[, "int_year"],
 #'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))], y.lag = 2)
 #'
-#' # Panel Cross Validation in a staggered setting
-#' pcv <- PanelCrossValidationMulti(data = newdata)
+#' # Panel Cross Validation in a staggered setting with different ML methods
+#' pcv_multi <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 #'
 #' # ATE estimation
-#' causal <- MLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv)
+#' causal <- StagMLCM(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi)
 #'
-PanelCrossValidationMulti <- function(data, pcv_block = 1, metric = "RMSE",
-                                      default_par = list(gbm = list(depth = c(1,2,3),
+PanelCrossValidationStag <- function(data, pcv_block = 1, metric = "RMSE",
+                                     default_par = list(gbm = list(depth = c(1,2,3),
                                                                     n.trees = c(500, 1000),
                                                                     shrinkage = seq(0.01, 0.1, by = 0.02),
                                                                     n.minobsinnode = c(10,20)),

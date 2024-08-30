@@ -49,7 +49,7 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
 \item{default_par}{List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.}
 
-\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.}
+\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationStag}.}
 
 \item{alpha}{Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 95\% confidence interval.}

@@ -32,7 +32,7 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
 \item{ML_methods}{Optional list of ML methods to be used as alternatives to the default methods. Each method must be supplied
 as a named list of two elements: a character defining the method name from all the ones available in \code{caret}
-and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.#'}
+and the grid of parameter values to tune via the panel cross validation. See Details and the examples for additional explanations.}
 }
 \value{
 A list containing the following objects:
@@ -81,7 +81,7 @@ ctrl <- trainControl(index = trainx, indexOut = testx)
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 
 ### Example 2. Changing ML methods and estimating ATE
-
+set.seed(1)
 enet <- list(method = "enet",
             tuneGrid = expand.grid(
               fraction = seq(0.1, 0.9, by = 0.1),
@@ -91,12 +91,14 @@ linreg <- list(method = "lm",
               tuneGrid = expand.grid(
                 intercept = seq(0, 10, by = 0.5)))
 
+pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
-                            ML_methods = list(enet, linreg))
+                            ML_methods = list(enet, linreg, pls))
 
 causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
                nboot = 10, CATE = FALSE)
 
-causal$ate
-causal$conf.ate
+causal$estimate$ate
+causal$estimate$conf.ate
 }

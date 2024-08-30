@@ -37,7 +37,7 @@
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param default_par List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.
-#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
+#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationStag}.
 #' @param CATE        Whether the function should estimate also CATE (defaults to \code{FALSE}). Currently not allowed for staggered adoption. See Details.
 #' @param x.cate      Optional matrix or data.frame of external regressors to use as predictors of CATE. If missing, the
 #'                    same covariates used to estimate ATE will be used. See Details.
@@ -247,7 +247,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' @param metric      Character, the performance metric that should be used to select the optimal model.
 #'                    Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.
 #' @param default_par List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.
-#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.
+#' @param PCV         Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationStag}.
 #' @param alpha       Confidence interval level to report for the ATE. Defaulting to 0.05 for a two sided
 #'                    95\% confidence interval.
 #' @param fe          Logical, whether to include fixed effects dummy variables. Defaults to false.
@@ -348,7 +348,7 @@ StagMLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
   ## 2. Panel cross-validation in staggered settings
   if(is.null(PCV)){
 
-    best <- lapply(PanelCrossValidationMulti(data = data_panel, pcv_block = pcv_block, metric = metric, default_par = default_par),
+    best <- lapply(PanelCrossValidationStag(data = data_panel, pcv_block = pcv_block, metric = metric, default_par = default_par),
                    FUN = function(x)(x[["best"]]))
 
   } else {
@@ -455,7 +455,7 @@ StagMLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
 #' @details This function is mainly for internal use of \code{MLCM}. It is exported to give
 #' users full flexibility in the choice of the ML algorithms and during the panel cross validation.
 #' See the documentation of the function \code{PanelCrossValidation} or, for a staggered adoption
-#' setting, \code{PanelCrossValidationMulti}.
+#' setting, \code{PanelCrossValidationStag}.
 #'
 #' If \code{fe = TRUE}, N-1 dummy variables will be added to the dataset, where N is the total number
 #' of units in the panel).
@@ -809,7 +809,7 @@ check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, 
   if(nboot < 1 | all(!class(nboot) %in% c("numeric", "integer")) | nboot%%1 != 0) stop("nboot must be an integer greater than 1")
   if(!metric %in% c("RMSE", "Rsquared")) stop("Metric not allowed, check documentation")
   if(!is.null(PCV) & !is.character(int_date) & (!"train" %in% class(PCV$best))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidation()'")
-  if(!is.null(PCV) & is.character(int_date)){if(any(sapply(PCV, function(x)(!"train" %in% class(x$best))))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidationMulti()' ")}
+  if(!is.null(PCV) & is.character(int_date)){if(any(sapply(PCV, function(x)(!"train" %in% class(x$best))))) stop("Invalid PCV method, it should be a list returned from a previous call to 'PanelCrossValidationStag()' ")}
   if(alpha < 0 | alpha > 1) stop("Invalid confidence interval level, alpha must be positive and less than 1")
 
   # Checking default_par

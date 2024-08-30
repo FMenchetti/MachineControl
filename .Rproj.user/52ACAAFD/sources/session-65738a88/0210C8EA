@@ -1,26 +1,26 @@
 {
-    "id": "CF4AAC0F",
-    "path": "~/GitHub/MLCM/data-raw/DATASET.R",
-    "project_path": "data-raw/DATASET.R",
+    "id": "0210C8EA",
+    "path": "~/GitHub/MLCM/R/mlcm.R",
+    "project_path": "R/mlcm.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "1190374507",
     "contents": "",
     "dirty": false,
-    "created": 1724953217116.0,
+    "created": 1677688588084.0,
     "source_on_save": false,
-    "relative_order": 9,
+    "relative_order": 1,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "44,54",
-        "scrollLine": "34"
+        "cursorPosition": "811,212",
+        "scrollLine": "806"
     },
     "folds": "",
-    "lastKnownWriteTime": 1724950013,
+    "lastKnownWriteTime": 1725037072,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1724950013,
+    "last_content_update": 1725037072919,
     "read_only": false,
     "read_only_alternatives": []
 }

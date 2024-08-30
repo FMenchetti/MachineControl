@@ -35,7 +35,7 @@ to be used by the function 'MLCM'.
 This function is mainly for internal use of \code{MLCM}. It is exported to give
 users full flexibility in the choice of the ML algorithms and during the panel cross validation.
 See the documentation of the function \code{PanelCrossValidation} or, for a staggered adoption
-setting, \code{PanelCrossValidationMulti}.
+setting, \code{PanelCrossValidationStag}.
 
 If \code{fe = TRUE}, N-1 dummy variables will be added to the dataset, where N is the total number
 of units in the panel).

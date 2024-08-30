@@ -51,7 +51,7 @@ Possible choices are either \code{"RMSE"} (the default) or \code{"Rsquared"}.}
 
 \item{default_par}{List of parameters for the default ML algorithms. See the Details of \code{PanelCrossValidation}.}
 
-\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationMulti}.}
+\item{PCV}{Optional, list returned from a previous call to \code{PanelCrossValidation} or \code{PanelCrossValidationStag}.}
 
 \item{CATE}{Whether the function should estimate also CATE (defaults to \code{FALSE}). Currently not allowed for staggered adoption. See Details.}
 
