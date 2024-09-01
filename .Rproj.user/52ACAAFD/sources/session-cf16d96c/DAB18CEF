@@ -1,0 +1,26 @@
+{
+    "id": "DAB18CEF",
+    "path": "~/GitHub/MLCM/tests/testthat/test-panelcv.R",
+    "project_path": "tests/testthat/test-panelcv.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1725206623937.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "55,120",
+        "scrollLine": "54"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1725200333,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1725200333,
+    "read_only": false,
+    "read_only_alternatives": []
+}

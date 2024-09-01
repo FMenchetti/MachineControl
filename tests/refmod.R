@@ -26,6 +26,7 @@ pcv <- PanelCrossValidation(data = newdata, int_date = 2019,
                             ML_methods = list(enet, linreg, pls))
 
 # Causal effect estimation and inference
+set.seed(1)
 causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
                nboot = 10, CATE = FALSE, y.lag = 2)
 
@@ -48,6 +49,7 @@ set.seed(1)
 pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 
 # Causal effect estimation and inference
+set.seed(1)
 causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
 
 ## Saving
