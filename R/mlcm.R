@@ -184,7 +184,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
   }
 
   ## 3. ATE & individual effects estimation
-  effects <- ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
+  effects <- .ate_est(data = data_panel, int_date = int_date, best = best, metric = metric, y.lag = y.lag, ran.err = FALSE)
   ate <- effects$ate
   ind_effects <- effects$ind_effects
   placebo_effects <- effects$placebo_effects
@@ -200,7 +200,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
   ## 5. CATE estimation & inference
   if(CATE){
 
-    cate_effects <- cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
+    cate_effects <- .cate_est(data = data_panel, int_date = int_date, ind_effects = ind_effects, x.cate = x.cate, nboot = nboot, alpha = alpha)
     cate <- cate_effects$cate
     cate.inf <- cate_effects$cate.inf
 
@@ -362,7 +362,7 @@ MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
   nint <- unique(data_panel$int_date)
   ate_i <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                           datax$int_date <- NULL
-                                                          ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
+                                                          .ate_est(data = datax, int_date = x, best = y, metric = metric, ran.err = FALSE, y.lag = y.lag)}, SIMPLIFY = FALSE)
   names(ate_i) <- paste0("int_", nint)
 
   #  3.1. Global ATE: estimation
@@ -571,7 +571,7 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FAL
 #' @importFrom stats rnorm
 #' @importFrom stats sd
 
-ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
+.ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 
   ### Step 1. Settings (empty matrix)
   postimes <- data[which(data[, "Time"] >= int_date), "Time"]
@@ -672,7 +672,7 @@ ate_est <- function(data, int_date, best, metric, ran.err, y.lag){
 #' }
 #' @noRd
 
-cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
+.cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
 
   ### Step 1. Selecting post-intervention times
   post <- which(data$Time >= int_date)
