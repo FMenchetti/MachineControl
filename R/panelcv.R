@@ -82,8 +82,10 @@
 #' # Customized panel cross validation
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 #'
-#' ### Example 2. Changing ML methods and estimating ATE
-#' set.seed(1)
+#' ### Example 2. Changing ML methods
+#'
+#' # PCV with enet, linreg and pls
+#'
 #' enet <- list(method = "enet",
 #'             tuneGrid = expand.grid(
 #'               fraction = seq(0.1, 0.9, by = 0.1),
@@ -98,12 +100,11 @@
 #' pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
 #'                             ML_methods = list(enet, linreg, pls))
 #'
-#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
-#'                nboot = 10, CATE = FALSE, y.lag = 2)
+#' # Best ML method and tune
 #'
-#' causal$estimate$ate
-#' causal$estimate$conf.ate
-
+#' pcv$best$method
+#' pcv$best$bestTune
+#'
 PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
                                  default_par = list(gbm = list(depth = c(1,2,3),
                                                                n.trees = c(500, 1000),
@@ -259,7 +260,6 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' @examples
 #'
 #' ### Example 1. Using the default ML methods in a staggered setting
-#' set.seed(1)
 #'
 #' # Assume the following intervention dates
 #' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
@@ -271,13 +271,25 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #' # Organizing the dataset with as.PanelMLCM
 #' newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
 #'                         int_date = data_stag[, "int_year"],
-#'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))], y.lag = 2)
+#'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))],
+#'                         y.lag = 2)
 #'
 #' # Panel Cross Validation in a staggered setting with different ML methods
+#' enet <- list(method = "enet",
+#'              tuneGrid = expand.grid(
+#'                fraction = seq(0.1, 0.9, by = 0.1),
+#'                lambda = seq(0.1, 0.9, by = 0.1)))
+#'
+#' linreg <- list(method = "lm",
+#'                tuneGrid = expand.grid(
+#'                  intercept = seq(0, 10, by = 0.5)))
+#'
+#' pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
 #' pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 #'
-#' # ATE estimation
-#' causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
+#' # Best ML methods and tune
+#' lapply(pcv_stag, function(x)(x$best$method))
+#' lapply(pcv_stag, function(x)(x$best$bestTune))
 #'
 PanelCrossValidationStag <- function(data, pcv_block = 1, metric = "RMSE",
                                      default_par = list(gbm = list(depth = c(1,2,3),

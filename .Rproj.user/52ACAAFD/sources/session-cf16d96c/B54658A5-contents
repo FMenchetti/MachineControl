@@ -13,7 +13,7 @@
 #' Bootstrap inference for ATE
 #'
 #' Internal function, used within the MLCM routine for the estimation of ATE
-#' standard error and 95% confidence interval.
+#' standard error and confidence interval.
 #'
 #' @param data         A 'PanelMLCM' object from a previous call to \code{as.PanelMLCM}.
 #' @param int_date     The date of the intervention, treatment, policy introduction or shock. It must be contained in 'timevar'.
@@ -78,10 +78,10 @@
                                            out <- setdiff(grep(colnames(data), pattern = "FE_", value = T), inn)
                                            data_boot <- data[c(i, post), ]
                                            data_boot[, out] <- NULL
-                                           ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+                                           .ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
     } else {
 
-      eff_boot <- apply(ii, 1, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+      eff_boot <- apply(ii, 1, function(i){.ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
 
     }
 
@@ -111,12 +111,12 @@
                                                                out <- setdiff(grep(colnames(data), pattern = "FE_", value = T), inn)
                                                                data_boot <- data[c(i, post), ]
                                                                data_boot[, out] <- NULL
-                                                               ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)},
+                                                               .ate_est(data = data_boot, int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)},
                          SIMPLIFY = FALSE)
 
     } else {
 
-      eff_boot <- lapply(ii0, function(i){ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
+      eff_boot <- lapply(ii0, function(i){.ate_est(data = data[c(i, post),], int_date = int_date, best = bestt, metric = metric, ran.err = TRUE, y.lag = y.lag)})
 
     }
 
@@ -188,7 +188,7 @@
 #' Bootstrap inference for CATE
 #'
 #' Internal function, used within the MLCM routine for the estimation of CATE
-#' standard errors and 95% confidence intervals in each terminal node of the tree.
+#' standard errors and confidence intervals in each terminal node of the tree.
 #' It works by resampling the observations at each final node of the tree.
 #' Note that the observations are the estimated individual
 #' causal effects (computed by comparing the observed data with the ML predictions).

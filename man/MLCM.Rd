@@ -126,7 +126,7 @@ underlying assumptions see the paper cited above.
 \examples{
 
 ### Example 1. Estimating ATE (with default ML methods)
-
+\dontrun{
 # Estimation
 fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
             inf_type = "classic", nboot = 10, y.lag = 2)
@@ -138,9 +138,9 @@ fit$ate$conf.interval
 # Individual effects
 head(fit$individual$estimate)
 head(fit$individual$conf.interval)
-
+}
 ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
-
+\dontrun{
 # Simulating time-varying external regressors
 x.cate <- cbind(ID = rep(1:100, each = 2), year = rep(2019:2020, times = 100), x1 = rnorm(200),
                 x2 = 2*rnorm(200), x3 = sample(1:5, size = 200, replace = TRUE))
@@ -151,5 +151,34 @@ fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
 
 # CATE
 plot(fit, type = "cate")
+}
+
+# Example 3. Estimating ATE with custom ML methods
+
+# Organizing the dataset
+newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+                        x = data[, !(names(data) \%in\% c("Y", "ID", "year"))],
+                        y.lag = 2)
+
+# PCV with enet, linreg and pls
+
+enet <- list(method = "enet",
+            tuneGrid = expand.grid(
+              fraction = seq(0.1, 0.9, by = 0.1),
+              lambda = seq(0.1, 0.9, by = 0.1)))
+
+linreg <- list(method = "lm",
+              tuneGrid = expand.grid(
+                intercept = seq(0, 10, by = 0.5)))
+
+pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+
+pcv <- PanelCrossValidation(data = newdata, int_date = 2019,
+                            ML_methods = list(enet, linreg, pls))
+
+# ATE estimation and inference
+causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
+               nboot = 10, CATE = FALSE, y.lag = 2)
+plot(causal, type = "ate")
 
 }

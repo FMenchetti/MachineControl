@@ -80,8 +80,10 @@ ctrl <- trainControl(index = trainx, indexOut = testx)
 # Customized panel cross validation
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl)
 
-### Example 2. Changing ML methods and estimating ATE
-set.seed(1)
+### Example 2. Changing ML methods
+
+# PCV with enet, linreg and pls
+
 enet <- list(method = "enet",
             tuneGrid = expand.grid(
               fraction = seq(0.1, 0.9, by = 0.1),
@@ -96,9 +98,9 @@ pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
 pcv <- PanelCrossValidation(data = newdata, int_date = 2019, trControl = ctrl,
                             ML_methods = list(enet, linreg, pls))
 
-causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
-               nboot = 10, CATE = FALSE, y.lag = 2)
+# Best ML method and tune
 
-causal$estimate$ate
-causal$estimate$conf.ate
+pcv$best$method
+pcv$best$bestTune
+
 }

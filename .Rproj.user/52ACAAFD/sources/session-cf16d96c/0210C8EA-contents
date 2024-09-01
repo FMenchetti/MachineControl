@@ -114,7 +114,7 @@
 #' @examples
 #'
 #' ### Example 1. Estimating ATE (with default ML methods)
-#'
+#' \dontrun{
 #' # Estimation
 #' fit <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,
 #'             inf_type = "classic", nboot = 10, y.lag = 2)
@@ -126,9 +126,9 @@
 #' # Individual effects
 #' head(fit$individual$estimate)
 #' head(fit$individual$conf.interval)
-#'
+#' }
 #' ### Example 2. Estimating ATE and CATE (with external regressors in CATE)
-#'
+#' \dontrun{
 #' # Simulating time-varying external regressors
 #' x.cate <- cbind(ID = rep(1:100, each = 2), year = rep(2019:2020, times = 100), x1 = rnorm(200),
 #'                 x2 = 2*rnorm(200), x3 = sample(1:5, size = 200, replace = TRUE))
@@ -139,6 +139,35 @@
 #'
 #' # CATE
 #' plot(fit, type = "cate")
+#' }
+#'
+#' # Example 3. Estimating ATE with custom ML methods
+#'
+#' # Organizing the dataset
+#' newdata <- as.PanelMLCM(y = data[, "Y"], timevar = data[, "year"], id = data[, "ID"],
+#'                         x = data[, !(names(data) %in% c("Y", "ID", "year"))],
+#'                         y.lag = 2)
+#'
+#' # PCV with enet, linreg and pls
+#'
+#' enet <- list(method = "enet",
+#'             tuneGrid = expand.grid(
+#'               fraction = seq(0.1, 0.9, by = 0.1),
+#'               lambda = seq(0.1, 0.9, by = 0.1)))
+#'
+#' linreg <- list(method = "lm",
+#'               tuneGrid = expand.grid(
+#'                 intercept = seq(0, 10, by = 0.5)))
+#'
+#' pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+#'
+#' pcv <- PanelCrossValidation(data = newdata, int_date = 2019,
+#'                             ML_methods = list(enet, linreg, pls))
+#'
+#' # ATE estimation and inference
+#' causal <- MLCM(data = newdata, int_date = 2019, inf_type = "classic", PCV = pcv,
+#'                nboot = 10, CATE = FALSE, y.lag = 2)
+#' plot(causal, type = "ate")
 #'
 MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                  default_par = list(gbm = list(depth = c(1,2,3),
@@ -303,7 +332,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #'
 #' @examples
 #'
-#' ### Example 1. Estimating ATE in staggered settings (with default ML methods)
+#' ### Example 1. Estimating ATE in staggered settings (with custom ML methods)
 #'
 #' # Assume the following intervention dates
 #' int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
@@ -312,14 +341,33 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' # Define data_stag
 #' data_stag <- data.frame(int_year, data)
 #'
-#' # Estimation
-#' fit <- MLCMStag(data = data_stag, y = "Y", timevar = "year", id = "ID", int_date = "int_year",
-#'             inf_type = "block", nboot = 10, y.lag = 2)
+#' # Organizing the dataset with as.PanelMLCM
+#' newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
+#'                         int_date = data_stag[, "int_year"],
+#'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))],
+#'                         y.lag = 2)
+#'
+#' # Panel Cross Validation in a staggered setting with different ML methods
+#' enet <- list(method = "enet",
+#'              tuneGrid = expand.grid(
+#'                fraction = seq(0.1, 0.9, by = 0.1),
+#'                lambda = seq(0.1, 0.9, by = 0.1)))
+#'
+#' linreg <- list(method = "lm",
+#'                tuneGrid = expand.grid(
+#'                  intercept = seq(0, 10, by = 0.5)))
+#'
+#' pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+#' pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
+#'
+#' # Causal effect estimation and inference
+#' causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
 #'
 #' # Plotting
-#' g <- plot(fit, type = "cohort")
-#' g[[1]] + theme_bc()
-#' g[[2]] + theme_bc()
+#' g <- plot(causal_stag, type = "cohort")
+#' g[[1]]
+#' g[[2]]
+#'
 MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, id = NULL, y.lag = 0, nboot = 1000, pcv_block = 1, metric = "RMSE",
                      default_par = list(gbm = list(depth = c(1,2,3),
                                                    n.trees = c(500, 1000),

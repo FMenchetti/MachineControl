@@ -47,7 +47,6 @@ their treatment date. Note that the \code{int_date} argument must be a column of
 \examples{
 
 ### Example 1. Using the default ML methods in a staggered setting
-set.seed(1)
 
 # Assume the following intervention dates
 int_year_i <- c(rep(2019, times = 60), rep(2020, times = 40))
@@ -59,12 +58,24 @@ data_stag <- data.frame(int_year, data)
 # Organizing the dataset with as.PanelMLCM
 newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
                         int_date = data_stag[, "int_year"],
-                        x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 2)
+                        x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))],
+                        y.lag = 2)
 
 # Panel Cross Validation in a staggered setting with different ML methods
-pcv_multi <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
+enet <- list(method = "enet",
+             tuneGrid = expand.grid(
+               fraction = seq(0.1, 0.9, by = 0.1),
+               lambda = seq(0.1, 0.9, by = 0.1)))
 
-# ATE estimation
-causal <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi, y.lag = 2)
+linreg <- list(method = "lm",
+               tuneGrid = expand.grid(
+                 intercept = seq(0, 10, by = 0.5)))
+
+pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
+pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
+
+# Best ML methods and tune
+lapply(pcv_stag, function(x)(x$best$method))
+lapply(pcv_stag, function(x)(x$best$bestTune))
 
 }
