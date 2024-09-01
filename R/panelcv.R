@@ -6,6 +6,8 @@
 ##
 ## Date last modified: August 2024
 ##
+## Functions: PanelCrossValidation, PanelCrossValidationStag
+##
 ###############################################################################
 
 #' Panel Cross Validation

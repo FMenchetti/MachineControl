@@ -6,6 +6,9 @@
 ##
 ## Date last modified: August 2024
 ##
+## Functions: MLCM, MLCMStag, as.PanelMLCM
+## Internal : .ate_est, .cate_est, .true_lag, .groupavg_eff, .check_MLCM, .check_xcate
+##
 ###############################################################################
 
 #' Machine Learning Control Method
@@ -150,13 +153,13 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
   ### Parameter checks
 
   ## ATE checks
-  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
+  .check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
 
   ## CATE checks
   if(CATE & is.character(int_date)) stop("CATE = TRUE non allowed in staggered settings")
   if(CATE & !is.null(x.cate)){
 
-    x.cate <- check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
+    x.cate <- .check_xcate(x.cate = x.cate, data = data, id = id, timevar = timevar)
 
   } else if (!is.null(x.cate) & !CATE){ stop("Inserted external data for CATE estimation but 'CATE' is set to FALSE")}
 
@@ -330,7 +333,7 @@ MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
   ### Parameter checks
 
   ## ATE checks
-  check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
+  .check_MLCM(data = data, int_date = int_date, inf_type = inf_type, y = y, timevar = timevar, id = id, y.lag = y.lag, nboot = nboot, pcv_block = pcv_block, metric = metric, default_par = default_par, PCV = PCV, alpha = alpha, fe = fe)
 
   ## 1. Structuring the panel dataset in the required format
   if("PanelMLCM" %in% class(data)){
@@ -746,7 +749,7 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FAL
 #'
 #' @noRd
 
-check_xcate <- function(x.cate, data, id, timevar){
+.check_xcate <- function(x.cate, data, id, timevar){
 
   if(!(is.matrix(x.cate)|is.data.frame(x.cate))) stop("x.var must be 'matrix' or 'data.frame'")
   x.cate <- as.data.frame(x.cate)
@@ -771,7 +774,7 @@ check_xcate <- function(x.cate, data, id, timevar){
   return(x.cate)
 }
 
-check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, default_par, PCV, alpha, fe){
+.check_MLCM <- function(data, int_date, inf_type, y , timevar, id, y.lag, nboot, pcv_block, metric, default_par, PCV, alpha, fe){
 
   ### Parameter checks
 

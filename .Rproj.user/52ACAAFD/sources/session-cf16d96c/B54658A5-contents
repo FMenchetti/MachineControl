@@ -6,6 +6,8 @@
 ##
 ## Date last modified: August 2024
 ##
+## Functions: .boot_ate, .boot_cate
+##
 ###############################################################################
 
 #' Bootstrap inference for ATE

@@ -6,6 +6,9 @@
 ##
 ## Date last modified: August 2024
 ##
+## Functions: plot.MLCM, plot.MLCMStag
+## Internal : .plot_effects
+##
 ###############################################################################
 
 #' Plot of estimated causal effects
