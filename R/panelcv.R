@@ -272,10 +272,10 @@ PanelCrossValidation <- function(data, int_date, pcv_block = 1, metric = "RMSE",
 #'                         x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))], y.lag = 2)
 #'
 #' # Panel Cross Validation in a staggered setting with different ML methods
-#' pcv_multi <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
+#' pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 #'
 #' # ATE estimation
-#' causal <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_multi, y.lag = 2)
+#' causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
 #'
 PanelCrossValidationStag <- function(data, pcv_block = 1, metric = "RMSE",
                                      default_par = list(gbm = list(depth = c(1,2,3),
