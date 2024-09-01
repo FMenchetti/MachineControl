@@ -192,7 +192,7 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
   ## 4. ATE & individual effects inference
   invisible(capture.output(
 
-  boot_inf <- boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
+  boot_inf <- .boot_ate(data = data_panel, int_date = int_date, bestt = best, type = inf_type, nboot = nboot, ate = ate,
                            alpha = alpha, metric = metric, y.lag = y.lag, ind.eff = ind_effects, fe = fe, placebo.eff = placebo_effects)
 
   ))
@@ -387,7 +387,7 @@ MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
   ind <- which(colnames(ta_ind_effects) == "int_date")
   boot_inf <- mapply(x = nint, y = best, FUN = function(x,y){datax <- data_panel[data_panel$int_date == x,]
                                                              datax$int_date <- NULL
-                                                             boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
+                                                             .boot_ate(data = datax, int_date = x, bestt = y, type = inf_type, nboot = nboot,
                                                              ate = global_ate, ind.eff = ta_ind_effects[, -ind], alpha = alpha, metric = metric, y.lag = y.lag, fe = fe)}, SIMPLIFY = FALSE)
 
   names(boot_inf) <- paste0("int_", nint)
@@ -698,7 +698,7 @@ cate_est <- function(data, int_date, ind_effects, x.cate, nboot, alpha){
           minbucket = 0.05*length(unique(data$ID)), model = TRUE)})
   mat <- data.frame(postimes, c(t(ind_effects[,-1])))
   cate.inf <- mapply(x = cate, y = unique(postimes), FUN = function(x,y)(
-    boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
+    .boot_cate(effect = mat[mat$postimes == y, -1], cate = x, nboot = nboot, alpha = alpha)), SIMPLIFY = FALSE)
   names(cate) <- names(cate.inf) <- unique(postimes)
 
   ### Step 4. Returning estimated CATE

@@ -1,3 +1,6 @@
+
+
+
 test_that("MLCM works", {
   set.seed(1)
   causal.1 <- MLCM(data = data, y = "Y", timevar = "year", id = "ID", int_date = 2019,

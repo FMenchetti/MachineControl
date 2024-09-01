@@ -49,7 +49,7 @@
 #' @importFrom stats sd
 
 
-boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate, fe, placebo.eff, ind.eff = NULL){
+.boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, ate, fe, placebo.eff, ind.eff = NULL){
 
   ### Param checks
   if(!any(class(data) %in% "PanelMLCM")) stop("Invalid class in the PanelCrossValidation function, something is wrong with as.PanelMLCM")
@@ -205,7 +205,7 @@ boot_ate <- function(data, int_date, bestt, type, nboot, alpha, metric, y.lag, a
 #' estimated by bootstrap. Each column corresponds to a terminal node of the tree.
 #' @noRd
 
-boot_cate <- function(effect, cate, nboot, alpha){
+.boot_cate <- function(effect, cate, nboot, alpha){
 
   ### Param checks
   if(!is.numeric(effect)) stop("effect must be a numeric vector")
