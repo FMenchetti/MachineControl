@@ -125,7 +125,8 @@ pls <- list(method = "pls", tuneGrid = expand.grid(ncomp = c(1:5)))
 pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 
 # Causal effect estimation and inference
-causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
+causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block",
+                        nboot = 10, PCV = pcv_stag, y.lag = 2)
 
 # Plotting
 g <- plot(causal_stag, type = "cohort")

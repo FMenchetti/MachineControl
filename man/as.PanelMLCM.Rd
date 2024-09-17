@@ -64,7 +64,8 @@ data_stag <- data.frame(int_year, data)
 # Organizing the dataset with as.PanelMLCM
 newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
                        int_date = data_stag[, "int_year"],
-                       x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))], y.lag = 2)
+                       x = data_stag[, !(names(data_stag) \%in\% c("Y", "ID", "year", "int_year"))],
+                       y.lag = 2)
 # Results
 head(newdata)
 

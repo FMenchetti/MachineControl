@@ -329,6 +329,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' @importFrom stats pnorm
 #' @importFrom stats rnorm
 #' @importFrom stats sd
+#' @importFrom stats weighted.mean
+#' @importFrom stats setNames
 #'
 #' @examples
 #'
@@ -361,7 +363,8 @@ MLCM <- function(data, int_date, inf_type = "block", y = NULL, timevar = NULL, i
 #' pcv_stag <- PanelCrossValidationStag(data = newdata, ML_methods = list(enet, linreg, pls))
 #'
 #' # Causal effect estimation and inference
-#' causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block", nboot = 10, PCV = pcv_stag, y.lag = 2)
+#' causal_stag <- MLCMStag(data = newdata, int_date = "int_date", inf_type = "block",
+#'                         nboot = 10, PCV = pcv_stag, y.lag = 2)
 #'
 #' # Plotting
 #' g <- plot(causal_stag, type = "cohort")
@@ -513,6 +516,7 @@ MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
 #'
 #' @return An object of class 'data.frame' and 'PanelMLCM'.
 #' @export
+#' @importFrom stats model.matrix
 #' @examples
 #'
 #' # Example 1. Start from a disorganized panel dataset
@@ -537,7 +541,8 @@ MLCMStag <- function(data, int_date, inf_type = "block", y = NULL, timevar = NUL
 #' # Organizing the dataset with as.PanelMLCM
 #' newdata <- as.PanelMLCM(y = data_stag[, "Y"], timevar = data_stag[, "year"], id = data_stag[, "ID"],
 #'                        int_date = data_stag[, "int_year"],
-#'                        x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))], y.lag = 2)
+#'                        x = data_stag[, !(names(data_stag) %in% c("Y", "ID", "year", "int_year"))],
+#'                        y.lag = 2)
 #' # Results
 #' head(newdata)
 #'
@@ -894,7 +899,7 @@ as.PanelMLCM <- function(y, x, timevar, id, int_date = NULL, y.lag = 0, fe = FAL
                                                      w <- c(w, setNames(rep(0, length(add)), add))
                                                      w <- w[order(names(w))]})
   colnames(placebo.post) <- post.int
-  rownames(placebo.post) <- gsub(rownames(placebo.post), patter="^", replacement = "int_")
+  rownames(placebo.post) <- gsub(rownames(placebo.post), pattern="^", replacement = "int_")
 
 
   ### STEP 3. Matrix of global weights (pre- and post-intervention)

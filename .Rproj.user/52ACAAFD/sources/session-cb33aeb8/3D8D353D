@@ -1,0 +1,26 @@
+{
+    "id": "3D8D353D",
+    "path": "~/GitHub/MLCM/R/data.R",
+    "project_path": "R/data.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1726581840187.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "12,4",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1726581884,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1726581884071,
+    "read_only": false,
+    "read_only_alternatives": []
+}
