@@ -48,6 +48,7 @@ library(MachineControl)
 ```
 -->
 
+<!-- DA REINSERIRE SOTTO:
 ## Tutorial
 
 Please check the following Replication Notebook for a tutorial of the package, based on a replication of the key findings from the empirical application illustrated in Cerqua et al. (2023): https://marclet.github.io/MLCM-Replication-Notebook/
@@ -56,3 +57,4 @@ Please check the following Replication Notebook for a tutorial of the package, b
 
 Cerqua A., & Letta M., & Menchetti F. 2023. The Machine
 Learning Control Method for Counterfactual Forecasting. Available as SRRN Working Paper at: http://dx.doi.org/10.2139/ssrn.4315389
+-->
